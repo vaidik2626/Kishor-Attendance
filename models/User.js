@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
+  teenStatus: {
+    type: String,
+    enum: ['Regular', 'NewAttend', 'NotProvided', ''],
+    default: ''
+  },
   photo: {
     type: String,
     default: ''
@@ -11,18 +16,26 @@ const userSchema = new mongoose.Schema({
   },
   smkNo: {
     type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
-  attendanceNumber: {
-    type: String,
+    trim: true,
     unique: true
   },
-  name: {
+  attendanceNumber: {
+    type: Number,
+  },
+  firstName: {
     type: String,
     required: true,
     trim: true
+  },
+  lastName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  middleName: {
+    type: String,
+    trim: true,
+    default: ''
   },
   address: {
     type: String,
@@ -50,6 +63,9 @@ const userSchema = new mongoose.Schema({
   },
   dateOfBirth: {
     type: Date
+  },
+  Age: {
+    type: Number
   },
   satsangDay: {
     type: String,
@@ -101,25 +117,39 @@ const userSchema = new mongoose.Schema({
     default: []
   },
   hariDevoteesKnown: {
-    type: [String],
+    type: [
+      {
+        firstName: { type: String, trim: true },
+        lastName: { type: String, trim: true },
+        secondName: { type: String, trim: true }
+      }
+    ],
     default: []
   },
-  poshakLeader: {
-    type: String,
-    trim: true
+  poshakLeaderSelection: {
+    type: [
+      {
+      firstName: { type: String, trim: true },
+        lastName: { type: String, trim: true },
+        secondName: { type: String, trim: true }
+      }
+    ],
+    default: []
   },
   assemblyType: {
     type: String,
-    enum: ['Children\'s assembly', 'Teen assembly', 'Youth assembly', ''],
+    enum: ['Bal Sabha', 'Kishor Sabha', 'Yuva Sabha-c', ''],
     default: ''
   },
-  poshakLeaderSelection: {
-    type: String,
-    trim: true
-  },
   familyLeaderSelection: {
-    type: String,
-    trim: true
+    type: [
+      {
+        firstName: { type: String, trim: true },
+        lastName: { type: String, trim: true },
+        secondName: { type: String, trim: true }
+      }
+    ],
+    default: []
   },
   sevaRole: {
     type: String,
@@ -133,11 +163,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  teenStatus: {
-    type: String,
-    enum: ['regular', 'medium', 'cancelled', ''],
-    default: ''
-  }
 }, {
   timestamps: true
 });

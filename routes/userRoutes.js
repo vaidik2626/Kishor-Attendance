@@ -6,7 +6,8 @@ const {
   getAllUsers,
   getUserById,
   updateUser,
-  deleteUser
+  deleteUser,
+  importUsersFromJSON
 } = require('../controllers/userController');
 const { storage } = require('../config/cloudinary');
 
@@ -34,5 +35,8 @@ router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
 router.put('/users/:id', upload.single('photo'), updateUser);
 router.delete('/users/:id', deleteUser);
+
+// Bulk import users from JSON
+router.post('/users/import-json', importUsersFromJSON);
 
 module.exports = router;

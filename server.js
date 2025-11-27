@@ -6,6 +6,7 @@ const path = require('path');
 const userRoutes = require('./routes/userRoutes');
 const sabhaRoutes = require('./routes/sabhaRoutes');
 const authRoutes = require('./routes/authRoutes');
+const saintRoutes = require('./routes/saintRoutes');
 
 const app = express();
 
@@ -34,6 +35,7 @@ connectDB();
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', sabhaRoutes);
+app.use('/api', saintRoutes);
 
 // Root route
 app.get('/', (req, res) => {
