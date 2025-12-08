@@ -76,11 +76,11 @@ const sabhaSchema = new mongoose.Schema({
   area: {
     type: String,
     enum: [
-      'મૂર્તિબાગ (Murtibaug)',
-      'રાધેશ્યામ સોસાયટી સિંગણપોર (Radheshyam Society Siganpore)',
-      'સર્જન (હરિદર્શનનો ખાડો) (Sarjan (Haridarshan no Khado))',
-      'નાથદ્વાર સોસાયટી (Nathdwar Society)',
-      'રિવાન્ટા ગાર્ડનસિટી (વરીયાવ) (Rivanta Garden City (Variyav))'
+      'Murtibaug',
+      'Radheshyam Society Siganpore',
+      'Sarjan (Haridarshan no Khado)',
+      'Nathdwar Society',
+      'Rivanta Garden City (Variyav)'
     ],
     required: true
   },
@@ -96,11 +96,11 @@ const sabhaSchema = new mongoose.Schema({
 // Helper to get area code
 function getAreaCode(area) {
   if (!area) return 'GEN';
-  if (area.includes('મૂર્તિબાગ')) return 'MURTIBAG';
-  if (area.includes('નાથદ્વાર')) return 'NATHDWAR';
-  if (area.includes('રાધેશ્યામ')) return 'RADHESHYAM';
-  if (area.includes('સર્જન')) return 'SARJAN';
-  if (area.includes('રિવાન્ટા')) return 'RIVANTA';
+  if (area.includes('Murtibaug')) return 'MURTIBAG';
+  if (area.includes('Nathdwar Society')) return 'NATHDWAR';
+  if (area.includes('Radheshyam')) return 'RADHESHYAM';
+  if (area.includes('Sarjan')) return 'SARJAN';
+  if (area.includes('Rivanta')) return 'RIVANTA';
   return 'GEN';
 }
 
