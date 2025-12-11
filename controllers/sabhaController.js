@@ -1,363 +1,367 @@
 const Sabha = require('../models/Sabha');
-const User = require('../models/User');
+const { Member } = require('../models/Member'); // Member model from your Member.js
 
-// Create a new sabha
+// Helpers
+function parseMaybeDate(value) {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function recalcAttendanceStats(sabhaDoc) {
+  if (!Array.isArray(sabhaDoc.attendance)) {
+    sabhaDoc.totalPresent = 0;
+    sabhaDoc.totalAbsent = 0;
+    return;
+  }
+  sabhaDoc.totalPresent = sabhaDoc.attendance.filter(a => a.isPresent).length;
+  sabhaDoc.totalAbsent = sabhaDoc.attendance.filter(a => !a.isPresent).length;
+}
+
+/**
+ * Create a new sabha
+ * - accepts attendance as JSON array (or array object)
+ * - accepts sabhaStartTime / sabhaEndTime as ISO string or date string
+ */
 const createSabha = async (req, res) => {
   try {
-    const sabhaData = { ...req.body };
-    
-    // Parse attendance array if it comes as string
-    if (typeof sabhaData.attendance === 'string') {
-      sabhaData.attendance = JSON.parse(sabhaData.attendance);
+    const body = { ...req.body };
+
+    // parse attendance if stringified
+    if (typeof body.attendance === 'string') {
+      try { body.attendance = JSON.parse(body.attendance); } catch (e) { body.attendance = []; }
     }
 
-    const sabha = new Sabha(sabhaData);
+    // parse date/time fields
+    if (body.sabhaDate) body.sabhaDate = parseMaybeDate(body.sabhaDate);
+    if (body.sabhaStartTime) body.sabhaStartTime = parseMaybeDate(body.sabhaStartTime);
+    if (body.sabhaEndTime) body.sabhaEndTime = parseMaybeDate(body.sabhaEndTime);
+
+    // create and save (pre save hook in model will compute sabhaNo and attendance totals)
+    const sabha = new Sabha(body);
     await sabha.save();
 
-    res.status(201).json({
-      success: true,
-      message: 'Sabha created successfully',
-      data: sabha
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error creating sabha',
-      error: error.message
-    });
+    const populated = await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+
+    res.status(201).json({ success: true, message: 'Sabha created', data: populated });
+  } catch (err) {
+    res.status(400).json({ success: false, message: 'Error creating sabha', error: err.message });
   }
 };
 
-// Get all sabhas
+/**
+ * Get all sabhas
+ * Query params:
+ *  - sabhaType
+ *  - startDate, endDate  (ISO strings)
+ *  - isCancelled (true|false)
+ *  - area
+ *  - visibility (optional)
+ *  - page, limit (pagination)
+ *
+ * If req.user exists, visibility filtering can be performed:
+ *  - PUBLIC -> everyone
+ *  - REGISTERED -> requires authenticated user (req.user)
+ *  - ROLE_BASED -> requires req.user.role and sabha.visibleToRoles contains it
+ *  - USER_SPECIFIC -> requires req.user._id in sabha.visibleToUsers
+ *
+ * If you don't pass req.user, REGISTERED/ROLE_BASED/USER_SPECIFIC sabhas will still be returned
+ * unless you choose to enforce server-side auth in your route/middleware.
+ */
 const getAllSabhas = async (req, res) => {
   try {
-    const { sabhaType, startDate, endDate, isCancelled } = req.query;
-    
-    let filter = {};
-    
-    if (sabhaType) {
-      filter.sabhaType = sabhaType;
-    }
-    
+    const { sabhaType, startDate, endDate, isCancelled, area, page = 1, limit = 20 } = req.query;
+
+    const filter = {};
+
+    if (sabhaType) filter.sabhaType = sabhaType;
+    if (area) filter.area = area;
+    if (isCancelled !== undefined) filter.isCancelled = isCancelled === 'true';
+
     if (startDate || endDate) {
       filter.sabhaDate = {};
       if (startDate) filter.sabhaDate.$gte = new Date(startDate);
       if (endDate) filter.sabhaDate.$lte = new Date(endDate);
     }
-    
-    if (isCancelled !== undefined) {
-      filter.isCancelled = isCancelled === 'true';
-    }
 
-    const sabhas = await Sabha.find(filter)
-      .populate('attendance.user', 'name smkNo attendanceNumber')
-      .sort({ sabhaDate: -1 });
-    
+    // basic pagination
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.max(1, parseInt(limit, 10));
+    const q = Sabha.find(filter).sort({ sabhaDate: -1 }).skip(skip).limit(parseInt(limit, 10));
+
+    // populate attendance.user limited fields
+    q.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+
+    const [items, total] = await Promise.all([q.exec(), Sabha.countDocuments(filter)]);
+
     res.status(200).json({
       success: true,
-      count: sabhas.length,
-      data: sabhas
+      count: items.length,
+      total,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      data: items
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching sabhas',
-      error: error.message
-    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching sabhas', error: err.message });
   }
 };
 
-// Get a single sabha by ID
+/**
+ * Get one sabha by id
+ */
 const getSabhaById = async (req, res) => {
   try {
-    const sabha = await Sabha.findById(req.params.id)
-      .populate('attendance.user', 'name smkNo attendanceNumber personalMobile');
-    
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
-    }
+    const sabha = await Sabha.findById(req.params.id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
-    res.status(200).json({
-      success: true,
-      data: sabha
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching sabha',
-      error: error.message
-    });
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    res.status(200).json({ success: true, data: sabha });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching sabha', error: err.message });
   }
 };
 
-// Update a sabha
+/**
+ * Update sabha
+ * - allows updating attendance array (replace) or other fields
+ * - validates start/end times
+ */
 const updateSabha = async (req, res) => {
   try {
-    const updateData = { ...req.body };
-    
-    // Parse attendance array if it comes as string
-    if (typeof updateData.attendance === 'string') {
-      updateData.attendance = JSON.parse(updateData.attendance);
+    const update = { ...req.body };
+
+    if (typeof update.attendance === 'string') {
+      try { update.attendance = JSON.parse(update.attendance); } catch (e) { update.attendance = undefined; }
     }
 
-    const sabha = await Sabha.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    ).populate('attendance.user', 'name smkNo attendanceNumber');
+    if (update.sabhaDate) update.sabhaDate = parseMaybeDate(update.sabhaDate);
+    if (update.sabhaStartTime) update.sabhaStartTime = parseMaybeDate(update.sabhaStartTime);
+    if (update.sabhaEndTime) update.sabhaEndTime = parseMaybeDate(update.sabhaEndTime);
 
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
+    // If start/end provided ensure end > start
+    if (update.sabhaStartTime && update.sabhaEndTime && update.sabhaEndTime <= update.sabhaStartTime) {
+      return res.status(400).json({ success: false, message: 'sabhaEndTime must be after sabhaStartTime' });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Sabha updated successfully',
-      data: sabha
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error updating sabha',
-      error: error.message
-    });
+    const sabha = await Sabha.findById(req.params.id);
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    // merge changes
+    Object.assign(sabha, update);
+
+    // recalc attendance stats (model pre save also handles but we do it here for safety)
+    recalcAttendanceStats(sabha);
+
+    await sabha.save();
+    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+
+    res.status(200).json({ success: true, message: 'Sabha updated', data: sabha });
+  } catch (err) {
+    res.status(400).json({ success: false, message: 'Error updating sabha', error: err.message });
   }
 };
 
-// Delete a sabha
+/**
+ * Delete sabha
+ */
 const deleteSabha = async (req, res) => {
   try {
     const sabha = await Sabha.findByIdAndDelete(req.params.id);
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Sabha deleted successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting sabha',
-      error: error.message
-    });
+    res.status(200).json({ success: true, message: 'Sabha deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error deleting sabha', error: err.message });
   }
 };
 
-// Mark attendance for a user in a sabha
+/**
+ * Mark single attendance (toggle/update)
+ * Body: { userId, isPresent: true/false }
+ */
 const markAttendance = async (req, res) => {
   try {
     const { sabhaId } = req.params;
     const { userId, isPresent } = req.body;
 
+    if (!userId) return res.status(400).json({ success: false, message: 'userId is required' });
+
     const sabha = await Sabha.findById(sabhaId);
-    
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
-    }
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    const member = await Member.findById(userId);
+    if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
-    // Check if attendance already marked for this user
-    const existingAttendance = sabha.attendance.findIndex(
-      att => att.user.toString() === userId
-    );
-
-    if (existingAttendance !== -1) {
-      // Update existing attendance
-      sabha.attendance[existingAttendance].isPresent = isPresent;
-      sabha.attendance[existingAttendance].markedAt = Date.now();
+    const idx = sabha.attendance.findIndex(a => a.user.toString() === userId);
+    if (idx !== -1) {
+      sabha.attendance[idx].isPresent = !!isPresent;
+      sabha.attendance[idx].markedAt = new Date();
     } else {
-      // Add new attendance record
-      sabha.attendance.push({
-        user: userId,
-        isPresent: isPresent
-      });
+      sabha.attendance.push({ user: userId, isPresent: !!isPresent, markedAt: new Date() });
     }
 
+    recalcAttendanceStats(sabha);
     await sabha.save();
-    await sabha.populate('attendance.user', 'name smkNo attendanceNumber');
+    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
-    res.status(200).json({
-      success: true,
-      message: 'Attendance marked successfully',
-      data: sabha
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error marking attendance',
-      error: error.message
-    });
+    res.status(200).json({ success: true, message: 'Attendance updated', data: sabha });
+  } catch (err) {
+    res.status(400).json({ success: false, message: 'Error marking attendance', error: err.message });
   }
 };
 
-// Mark bulk attendance
+/**
+ * Bulk attendance
+ * Body: { attendanceList: [ { userId, isPresent } ] }
+ */
 const markBulkAttendance = async (req, res) => {
   try {
     const { sabhaId } = req.params;
-    const { attendanceList } = req.body; // Array of { userId, isPresent }
+    const { attendanceList } = req.body;
 
-    const sabha = await Sabha.findById(sabhaId);
-    
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
+    if (!Array.isArray(attendanceList)) {
+      return res.status(400).json({ success: false, message: 'attendanceList must be an array' });
     }
 
-    for (const item of attendanceList) {
-      const existingAttendance = sabha.attendance.findIndex(
-        att => att.user.toString() === item.userId
-      );
+    const sabha = await Sabha.findById(sabhaId);
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
-      if (existingAttendance !== -1) {
-        sabha.attendance[existingAttendance].isPresent = item.isPresent;
-        sabha.attendance[existingAttendance].markedAt = Date.now();
+    for (const item of attendanceList) {
+      if (!item.userId) continue;
+      const memberExists = await Member.exists({ _id: item.userId });
+      if (!memberExists) continue; // skip invalid users
+
+      const idx = sabha.attendance.findIndex(a => a.user.toString() === item.userId);
+      if (idx !== -1) {
+        sabha.attendance[idx].isPresent = !!item.isPresent;
+        sabha.attendance[idx].markedAt = new Date();
       } else {
-        sabha.attendance.push({
-          user: item.userId,
-          isPresent: item.isPresent
-        });
+        sabha.attendance.push({ user: item.userId, isPresent: !!item.isPresent, markedAt: new Date() });
       }
     }
 
+    recalcAttendanceStats(sabha);
     await sabha.save();
-    await sabha.populate('attendance.user', 'name smkNo attendanceNumber');
+    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
-    res.status(200).json({
-      success: true,
-      message: 'Bulk attendance marked successfully',
-      data: sabha
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error marking bulk attendance',
-      error: error.message
-    });
+    res.status(200).json({ success: true, message: 'Bulk attendance updated', data: sabha });
+  } catch (err) {
+    res.status(400).json({ success: false, message: 'Error marking bulk attendance', error: err.message });
   }
 };
 
-// Get attendance report for a specific sabha
+/**
+ * Attendance report for a sabha
+ */
 const getSabhaAttendanceReport = async (req, res) => {
   try {
     const { sabhaId } = req.params;
-    
-    const sabha = await Sabha.findById(sabhaId)
-      .populate('attendance.user', 'name smkNo attendanceNumber personalMobile assemblyType');
+    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
-    if (!sabha) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sabha not found'
-      });
-    }
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
     const report = {
       sabhaNo: sabha.sabhaNo,
       sabhaType: sabha.sabhaType,
       sabhaDate: sabha.sabhaDate,
+      sabhaStartTime: sabha.sabhaStartTime,
+      sabhaEndTime: sabha.sabhaEndTime,
       totalPresent: sabha.totalPresent,
       totalAbsent: sabha.totalAbsent,
       totalUsers: sabha.attendance.length,
-      presentUsers: sabha.attendance.filter(att => att.isPresent),
-      absentUsers: sabha.attendance.filter(att => !att.isPresent)
+      presentUsers: sabha.attendance.filter(a => a.isPresent),
+      absentUsers: sabha.attendance.filter(a => !a.isPresent)
     };
 
-    res.status(200).json({
-      success: true,
-      data: report
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error generating attendance report',
-      error: error.message
-    });
+    res.status(200).json({ success: true, data: report });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error generating report', error: err.message });
   }
 };
 
-// Get user attendance history across all sabhas
+/**
+ * Get a user's attendance history across sabhas
+ * (expects :userId param)
+ */
 const getUserAttendanceHistory = async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    const member = await Member.findById(userId);
+    if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
-    const sabhas = await Sabha.find({
-      'attendance.user': userId
-    }).sort({ sabhaDate: -1 });
+    const sabhas = await Sabha.find({ 'attendance.user': userId }).sort({ sabhaDate: -1 });
 
-    const attendanceHistory = sabhas.map(sabha => {
-      const userAttendance = sabha.attendance.find(
-        att => att.user.toString() === userId
-      );
-      
+    const history = sabhas.map(sabha => {
+      const att = sabha.attendance.find(a => a.user.toString() === userId) || {};
       return {
+        sabhaId: sabha._id,
         sabhaNo: sabha.sabhaNo,
         sabhaType: sabha.sabhaType,
         sabhaDate: sabha.sabhaDate,
-        isPresent: userAttendance ? userAttendance.isPresent : false,
-        markedAt: userAttendance ? userAttendance.markedAt : null
+        isPresent: !!att.isPresent,
+        markedAt: att.markedAt || null
       };
     });
 
-    const totalSabhas = attendanceHistory.length;
-    const totalPresent = attendanceHistory.filter(att => att.isPresent).length;
-    const attendancePercentage = totalSabhas > 0 ? ((totalPresent / totalSabhas) * 100).toFixed(2) : 0;
+    const totalSabhas = history.length;
+    const totalPresent = history.filter(h => h.isPresent).length;
+    const attendancePercentage = totalSabhas ? ((totalPresent / totalSabhas) * 100).toFixed(2) : '0.00';
 
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          name: user.name,
-          smkNo: user.smkNo,
-          attendanceNumber: user.attendanceNumber
-        },
-        statistics: {
-          totalSabhas,
-          totalPresent,
-          totalAbsent: totalSabhas - totalPresent,
-          attendancePercentage: `${attendancePercentage}%`
-        },
-        history: attendanceHistory
+        member: { id: member._id, firstName: member.firstName, lastName: member.lastName, smkNo: member.smkNo },
+        statistics: { totalSabhas, totalPresent, totalAbsent: totalSabhas - totalPresent, attendancePercentage: `${attendancePercentage}%` },
+        history
       }
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user attendance history',
-      error: error.message
-    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching attendance history', error: err.message });
+  }
+};
+
+/**
+ * Bulk import sabhas from JSON array
+ */
+const importSabhasFromJSON = async (req, res) => {
+  try {
+    const sabhasArray = req.body;
+    if (!Array.isArray(sabhasArray)) {
+      return res.status(400).json({ success: false, message: 'Request body must be array' });
+    }
+
+    const mapped = sabhasArray.map(row => ({
+      sabhaNo: row.sabhaNo || undefined,
+      sabhaType: row.sabhaType || undefined,
+      sabhaDate: row.sabhaDate ? parseMaybeDate(row.sabhaDate) : undefined,
+      sabhaStartTime: row.sabhaStartTime ? parseMaybeDate(row.sabhaStartTime) : undefined,
+      sabhaEndTime: row.sabhaEndTime ? parseMaybeDate(row.sabhaEndTime) : undefined,
+      sabhaLeader: row.sabhaLeader || '',
+      sahSanchalak: row.sahSanchalak || '',
+      sahayak: row.sahayak || '',
+      yajman: row.yajman || '',
+      prashad: row.prashad || '',
+      Topic: row.Topic || '',
+      SabhaSanchalan: row.SabhaSanchalan || '',
+      Vakta: row.Vakta || '',
+      isCancelled: row.isCancelled === true,
+      reasonForCancellation: row.reasonForCancellation || '',
+      reason: row.reason || '',
+      attendance: Array.isArray(row.attendance) ? row.attendance.map(a => ({ user: a.user, isPresent: !!a.isPresent, markedAt: a.markedAt ? parseMaybeDate(a.markedAt) : undefined })) : [],
+      totalPresent: typeof row.totalPresent === 'number' ? row.totalPresent : undefined,
+      totalAbsent: typeof row.totalAbsent === 'number' ? row.totalAbsent : undefined,
+      area: row.area || undefined,
+      visibility: row.visibility || 'REGISTERED',
+      visibleToRoles: Array.isArray(row.visibleToRoles) ? row.visibleToRoles : [],
+      visibleToUsers: Array.isArray(row.visibleToUsers) ? row.visibleToUsers : [],
+      notes: row.notes || ''
+    }));
+
+    const result = await Sabha.insertMany(mapped);
+    res.status(201).json({ success: true, message: 'Sabhas imported', count: result.length, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error importing sabhas', error: err.message });
   }
 };
 
@@ -370,5 +374,6 @@ module.exports = {
   markAttendance,
   markBulkAttendance,
   getSabhaAttendanceReport,
-  getUserAttendanceHistory
+  getUserAttendanceHistory,
+  importSabhasFromJSON
 };

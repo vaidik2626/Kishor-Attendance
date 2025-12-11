@@ -3,10 +3,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-const userRoutes = require('./routes/userRoutes');
+const memberRoutes = require("./routes/memberRoutes");
 const sabhaRoutes = require('./routes/sabhaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const saintRoutes = require('./routes/saintRoutes');
+const sevaRoutes = require('./routes/sevaRoutes');
 
 const app = express();
 
@@ -33,8 +34,9 @@ connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api', userRoutes);
-app.use('/api', sabhaRoutes);
+app.use("/api/members", memberRoutes);
+app.use('/api/sabhas', sabhaRoutes);
+app.use('/api', sevaRoutes);
 app.use('/api', saintRoutes);
 
 // Root route

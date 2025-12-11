@@ -86,132 +86,174 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ---
 
-## 👤 USER APIs
+## 👤 MEMBER APIs (NEW SCHEMA)
 
-### 1. Create User (with Photo)
-**POST** `{{base_url}}/api/users`
+### 1. Bulk Import Members (JSON)
+**POST** `{{base_url}}/api/import-json`
 
-**Body (form-data):**
-```
-photo: [Select File]
-smkNo: SMK001
-name: John Doe
-address: 123 Main Street
-nativeVillage: Ahmedabad
-personalMobile: 9876543210
-homeMobile: 9876543211
-fatherMobile: 9876543212
-fatherOccupation: Teacher
-dateOfBirth: 2005-05-15
-satsangDay: Sunday
-bloodGroup: B+
-education: 10th Grade
-currentSchool: ABC High School
-futureGoal: Engineer
-skills: ["Singing", "Drawing"]
-hobbies: ["Cricket", "Reading"]
-doWorship: true
-haveFriendsOutside: false
-satsangAtHome: true
-childrensAssembly: Assembly A
-assemblySaintsKnown: ["Saint 1", "Saint 2"]
-hariDevoteesKnown: ["Devotee 1", "Devotee 2"]
-poshakLeader: Leader Name
-assemblyType: Teen assembly
-poshakLeaderSelection: Leader 1
-familyLeaderSelection: Family Leader 1
-sevaRole: Music
-whatsappGroupAdded: true
-familyTeen: Family Teen A
-teenStatus: regular
+**Body (raw JSON):**
+```json
+[
+  {
+    "role": "KISHOR",
+    "photoUrl": "https://...",
+    "smkNo": "SMK001",
+    "hajriNumber": "HJ001",
+    "firstName": "John",
+    "middleName": "A",
+    "lastName": "Doe",
+    "mobileNumber": "9876543210",
+    "personalMobile": "9876543210",
+    "homeMobile": "9876543211",
+    "fatherMobile": "9876543212",
+    "address": "123 Main Street",
+    "pincode": "395006",
+    "nativePlace": "Ahmedabad",
+    "fatherOccupation": "Teacher",
+    "dateOfBirth": "2005-05-15",
+    "satsangDay": "Sunday",
+    "bloodGroup": "B+",
+    "currentStandard": "10th Grade",
+    "schoolName": "ABC High School",
+    "futureAspiration": "Engineer",
+    "skills": "Singing, Drawing",
+    "hobbies": "Cricket, Reading",
+    "doesPooja": "YES",
+    "hasOutsideFriends": "NO",
+    "satsangAtHome": "YES",
+    "balSabhaName": "Assembly A",
+    "balSabhaCoordinatorName": "Leader Name",
+    "sant1Name": "Saint 1",
+    "sant2Name": "Saint 2",
+    "haribhakta1Name": "Devotee 1",
+    "haribhakta1Smk": "SMK002",
+    "haribhakta1Mobile": "9876543213",
+    "haribhakta2Name": "Devotee 2",
+    "haribhakta2Smk": "SMK003",
+    "haribhakta2Mobile": "9876543214",
+    "sabhaType": "Teen assembly",
+    "poshakLeaderId": "<MongoId>",
+    "familyLeaderId": "<MongoId>",
+    "sevaRoles": ["FOOD_SERVICE", "TEACHING"],
+    "whatsappGroupAdded": { "familyKishor": true },
+    "kishorStatus": "Active",
+    "sabhaJoiningDate": "2025-01-01"
+  }
+]
 ```
 
 ---
 
-### 2. Get All Users
+### 2. Add Single Member (JSON)
+**POST** `{{base_url}}/api/users`
+
+**Body (raw JSON):**
+```json
+{
+  "role": "KISHOR",
+  "smkNo": "SMK002",
+  "firstName": "Jane",
+  "lastName": "Smith"
+}
+```
+
+---
+
+### 3. Get All Members
 **GET** `{{base_url}}/api/users`
 
 ---
 
-### 3. Get User by ID
-**GET** `{{base_url}}/api/users/:userId`
-
-Replace `:userId` with actual user ID from MongoDB
+### 4. Get Member by ID
+**GET** `{{base_url}}/api/users/:id`
 
 ---
 
-### 4. Update User
-**PUT** `{{base_url}}/api/users/:userId`
+### 5. Update Member
+**PUT** `{{base_url}}/api/users/:id`
 
-**Body (form-data):** (Same as create, but only fields you want to update)
+**Body (form-data or raw JSON):**
+- Only include fields you want to update
+
+---
+
+### 6. Delete Member
+**DELETE** `{{base_url}}/api/users/:id`
+
+---
+
+## 📅 SABHA APIs (UPDATED SCHEMA)
+
+### 1. Bulk Import Sabhas (JSON)
+**POST** `{{base_url}}/api/sabhas/import-json`
+
+**Body (raw JSON):**
+```json
+[
+  {
+    "sabhaType": "Teen assembly",
+    "sabhaDate": "2025-11-23",
+    "sabhaStartTime": "2025-11-23T09:00:00Z",
+    "sabhaEndTime": "2025-11-23T11:00:00Z",
+    "sabhaLeader": "John Doe",
+    "sahSanchalak": "Jane Smith",
+    "sahayak": "Bob Wilson",
+    "yajman": "Alice Brown",
+    "prashad": "Fruits and sweets",
+    "Topic": "Spiritual Growth",
+    "SabhaSanchalan": "John Doe",
+    "Vakta": "Speaker Name",
+    "isCancelled": false,
+    "reasonForCancellation": "",
+    "reason": "Weekly sabha",
+    "attendance": [
+      { "user": "<MongoId>", "isPresent": true, "markedAt": "2025-11-23T09:30:00Z" }
+    ],
+    "area": "Murtibaug",
+    "visibility": "REGISTERED",
+    "visibleToRoles": ["KISHOR", "POSHAK_LEADER"],
+    "visibleToUsers": ["<MongoId>", "<MongoId>"] ,
+    "notes": "Regular weekly assembly"
+  }
+]
 ```
-name: John Updated Doe
-personalMobile: 9999999999
-```
 
 ---
 
-### 5. Delete User
-**DELETE** `{{base_url}}/api/users/:userId`
-
----
-
-## 📅 SABHA APIs
-
-### 1. Create Sabha
+### 2. Add Single Sabha (JSON)
 **POST** `{{base_url}}/api/sabhas`
 
-**Body (JSON):**
+**Body (raw JSON):**
 ```json
 {
   "sabhaType": "Teen assembly",
   "sabhaDate": "2025-11-23",
-  "sabhaLeader": "John Doe",
-  "sahSanchalak": "Jane Smith",
-  "sahayak": "Bob Wilson",
-  "yajman": "Alice Brown",
-  "prashad": "Fruits and sweets",
-  "isCancelled": false,
-  "reason": "Weekly sabha",
-  "notes": "Regular weekly assembly"
+  "area": "Murtibaug"
 }
 ```
 
 ---
 
-### 2. Get All Sabhas
+### 3. Get All Sabhas
 **GET** `{{base_url}}/api/sabhas`
 
-**Query Parameters (Optional):**
-```
-?sabhaType=Teen assembly
-?startDate=2025-11-01
-?endDate=2025-11-30
-?isCancelled=false
-```
+---
+
+### 4. Get Sabha by ID
+**GET** `{{base_url}}/api/sabhas/:id`
 
 ---
 
-### 3. Get Sabha by ID
-**GET** `{{base_url}}/api/sabhas/:sabhaId`
+### 5. Update Sabha
+**PUT** `{{base_url}}/api/sabhas/:id`
+
+**Body (raw JSON):**
+- Only include fields you want to update
 
 ---
 
-### 4. Update Sabha
-**PUT** `{{base_url}}/api/sabhas/:sabhaId`
-
-**Body (JSON):**
-```json
-{
-  "sabhaLeader": "Updated Leader",
-  "prashad": "Updated prashad details"
-}
-```
-
----
-
-### 5. Delete Sabha
-**DELETE** `{{base_url}}/api/sabhas/:sabhaId`
+### 6. Delete Sabha
+**DELETE** `{{base_url}}/api/sabhas/:id`
 
 ---
 
@@ -237,18 +279,8 @@ personalMobile: 9999999999
 ```json
 {
   "attendanceList": [
-    {
-      "userId": "674212345678901234567890",
-      "isPresent": true
-    },
-    {
-      "userId": "674212345678901234567891",
-      "isPresent": false
-    },
-    {
-      "userId": "674212345678901234567892",
-      "isPresent": true
-    }
+    { "userId": "674212345678901234567890", "isPresent": true },
+    { "userId": "674212345678901234567891", "isPresent": false }
   ]
 }
 ```
@@ -258,48 +290,10 @@ personalMobile: 9999999999
 ### 3. Get Sabha Attendance Report
 **GET** `{{base_url}}/api/sabhas/:sabhaId/attendance/report`
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "sabhaNo": "SAB000001",
-    "sabhaType": "Teen assembly",
-    "sabhaDate": "2025-11-23",
-    "totalPresent": 18,
-    "totalAbsent": 2,
-    "totalUsers": 20,
-    "presentUsers": [...],
-    "absentUsers": [...]
-  }
-}
-```
-
 ---
 
 ### 4. Get User Attendance History
 **GET** `{{base_url}}/api/users/:userId/attendance/history`
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "name": "John Doe",
-      "smkNo": "SMK001",
-      "attendanceNumber": "ATT000001"
-    },
-    "statistics": {
-      "totalSabhas": 20,
-      "totalPresent": 18,
-      "totalAbsent": 2,
-      "attendancePercentage": "90.00%"
-    },
-    "history": [...]
-  }
-}
-```
 
 ---
 
@@ -309,9 +303,9 @@ personalMobile: 9999999999
 1. Register a new admin → Save token
 2. Or login → Save token
 
-### Step 2: Create Users
-1. Create 3-5 users with photos
-2. Note their user IDs from response
+### Step 2: Create Members
+1. Create 3-5 members (Kishor, Leader, etc.)
+2. Note their IDs from response
 
 ### Step 3: Create Sabha
 1. Create a new sabha
@@ -346,22 +340,7 @@ For photo uploads:
 2. **Invalid User ID**: Use MongoDB ObjectId format (24 characters)
 3. **Photo Upload**: Use form-data, not JSON for file uploads
 4. **Arrays in form-data**: Use JSON format: `["item1", "item2"]`
-
----
-
-## 🎯 Quick Test Endpoints
-
-```
-✅ POST /api/auth/register
-✅ POST /api/auth/login
-✅ POST /api/users (with form-data)
-✅ GET /api/users
-✅ POST /api/sabhas
-✅ GET /api/sabhas
-✅ POST /api/sabhas/:sabhaId/attendance/bulk
-✅ GET /api/sabhas/:sabhaId/attendance/report
-✅ GET /api/users/:userId/attendance/history
-```
+5. **Bulk Import**: Use raw JSON array for bulk import endpoints
 
 ---
 

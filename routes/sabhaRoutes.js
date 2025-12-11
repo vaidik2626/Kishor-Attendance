@@ -1,28 +1,98 @@
+// routes/sabhaRoutes.js
 const express = require('express');
 const router = express.Router();
-const {
-  createSabha,
-  getAllSabhas,
-  getSabhaById,
-  updateSabha,
-  deleteSabha,
-  markAttendance,
-  markBulkAttendance,
-  getSabhaAttendanceReport,
-  getUserAttendanceHistory
-} = require('../controllers/sabhaController');
 
-// Sabha CRUD routes
-router.post('/sabhas', createSabha);
-router.get('/sabhas', getAllSabhas);
-router.get('/sabhas/:id', getSabhaById);
-router.put('/sabhas/:id', updateSabha);
-router.delete('/sabhas/:id', deleteSabha);
+const sabhaController = require('../controllers/sabhaController');
 
-// Attendance routes
-router.post('/sabhas/:sabhaId/attendance', markAttendance);
-router.post('/sabhas/:sabhaId/attendance/bulk', markBulkAttendance);
-router.get('/sabhas/:sabhaId/attendance/report', getSabhaAttendanceReport);
-router.get('/users/:userId/attendance/history', getUserAttendanceHistory);
+// OPTIONAL: if you have auth middleware, require it and use where needed
+// const { authenticate, authorize } = require('../middleware/auth');
+
+/**
+ * Routes:
+ *
+ * POST   /api/sabhas                     -> createSabha
+ * GET    /api/sabhas                     -> getAllSabhas (filters: sabhaType, startDate, endDate, isCancelled, area, page, limit)
+ * GET    /api/sabhas/:id                 -> getSabhaById
+ * PUT    /api/sabhas/:id                 -> updateSabha
+ * DELETE /api/sabhas/:id                 -> deleteSabha
+ *
+ * POST   /api/sabhas/bulk                -> importSabhasFromJSON
+ *
+ * POST   /api/sabhas/:sabhaId/attendance          -> markAttendance  (body: { userId, isPresent })
+ * POST   /api/sabhas/:sabhaId/attendance/bulk     -> markBulkAttendance (body: { attendanceList: [{ userId, isPresent }, ...] })
+ *
+ * GET    /api/sabhas/:sabhaId/report     -> getSabhaAttendanceReport
+ * GET    /api/sabhas/user/:userId/history-> getUserAttendanceHistory
+ */
+
+// Create sabha
+router.post(
+  '/',
+  // authenticate, // optional: protect endpoint
+  sabhaController.createSabha
+);
+
+// Bulk import sabhas
+router.post(
+  '/bulk',
+  // authenticate, // optional
+  sabhaController.importSabhasFromJSON
+);
+
+// List sabhas (with query params)
+router.get(
+  '/',
+  // authenticate, // optional
+  sabhaController.getAllSabhas
+);
+
+// Get one sabha
+router.get(
+  '/:id',
+  // authenticate, // optional (you may want to check visibility inside controller)
+  sabhaController.getSabhaById
+);
+
+// Update sabha
+router.put(
+  '/:id',
+  // authenticate, // optional
+  sabhaController.updateSabha
+);
+
+// Delete sabha
+router.delete(
+  '/:id',
+  // authenticate, // optional
+  sabhaController.deleteSabha
+);
+
+// Mark single attendance
+router.post(
+  '/:sabhaId/attendance',
+  // authenticate, // optional
+  sabhaController.markAttendance
+);
+
+// Mark bulk attendance
+router.post(
+  '/:sabhaId/attendance/bulk',
+  // authenticate, // optional
+  sabhaController.markBulkAttendance
+);
+
+// Sabha attendance report
+router.get(
+  '/:sabhaId/report',
+  // authenticate, // optional
+  sabhaController.getSabhaAttendanceReport
+);
+
+// User attendance history across sabhas
+router.get(
+  '/user/:userId/history',
+  // authenticate, // optional
+  sabhaController.getUserAttendanceHistory
+);
 
 module.exports = router;

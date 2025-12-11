@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Backend API Tester</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    h2 { margin-top: 2rem; }
+    label { display: block; margin-top: 1rem; }
+    textarea, input, select { width: 100%; margin-top: 0.5rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
+    .response { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Attendance Backend API Tester</h1>
+
+  <label>Base URL
+    <input id="baseUrl" value="http://localhost:6000/api">
+  </label>
+
+  <h2>Bulk Import Members (JSON)</h2>
+  <label>JSON Array
+    <textarea id="membersJson" rows="8">[
+  {
+    "role": "KISHOR",
+    "smkNo": "SMK001",
+    "firstName": "John",
+    "lastName": "Doe"
+  }
+]</textarea>
+  </label>
+  <button onclick="importMembers()">Import Members</button>
+  <div id="membersResponse" class="response"></div>
+
+  <h2>Bulk Import Sabhas (JSON)</h2>
+  <label>JSON Array
+    <textarea id="sabhasJson" rows="8">[
+  {
+    "sabhaType": "Teen assembly",
+    "sabhaDate": "2025-11-23",
+    "area": "Murtibaug"
+  }
+]</textarea>
+  </label>
+  <button onclick="importSabhas()">Import Sabhas</button>
+  <div id="sabhasResponse" class="response"></div>
+
+  <h2>Get All Members</h2>
+  <button onclick="getAllMembers()">Fetch Members</button>
+  <div id="allMembersResponse" class="response"></div>
+
+  <h2>Get All Sabhas</h2>
+  <button onclick="getAllSabhas()">Fetch Sabhas</button>
+  <div id="allSabhasResponse" class="response"></div>
+
+  <h2>Add Single Member (JSON)</h2>
+  <label>Member Object
+    <textarea id="singleMemberJson" rows="8">{
+  "role": "KISHOR",
+  "smkNo": "SMK002",
+  "firstName": "Jane",
+  "lastName": "Smith"
+}</textarea>
+  </label>
+  <button onclick="addSingleMember()">Add Member</button>
+  <div id="singleMemberResponse" class="response"></div>
+
+  <script>
+    function showResponse(id, data) {
+      document.getElementById(id).textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    }
+
+    async function importMembers() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const json = document.getElementById('membersJson').value;
+      try {
+        const res = await fetch(`${baseUrl}/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: json
+        });
+        const data = await res.json();
+        showResponse('membersResponse', data);
+      } catch (e) {
+        showResponse('membersResponse', e.toString());
+      }
+    }
+
+    async function importSabhas() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const json = document.getElementById('sabhasJson').value;
+      try {
+        const res = await fetch(`${baseUrl.replace('/api','')}/api/sabhas/import-json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: json
+        });
+        const data = await res.json();
+        showResponse('sabhasResponse', data);
+      } catch (e) {
+        showResponse('sabhasResponse', e.toString());
+      }
+    }
+
+    async function getAllMembers() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      try {
+        const res = await fetch(`${baseUrl}/users`);
+        const data = await res.json();
+        showResponse('allMembersResponse', data);
+      } catch (e) {
+        showResponse('allMembersResponse', e.toString());
+      }
+    }
+
+    async function getAllSabhas() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      try {
+        const res = await fetch(`${baseUrl.replace('/api','')}/api/sabhas`);
+        const data = await res.json();
+        showResponse('allSabhasResponse', data);
+      } catch (e) {
+        showResponse('allSabhasResponse', e.toString());
+      }
+    }
+
+    async function addSingleMember() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const json = document.getElementById('singleMemberJson').value;
+      try {
+        const res = await fetch(`${baseUrl}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: json
+        });
+        const data = await res.json();
+        showResponse('singleMemberResponse', data);
+      } catch (e) {
+        showResponse('singleMemberResponse', e.toString());
+      }
+    }
+  </script>
+</body>
+</html>
