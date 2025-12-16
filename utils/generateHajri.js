@@ -1,8 +1,13 @@
-const { Member } = require("../models/Member");
+const Counter = require("../models/Counter");
 
 async function generateHajriNumber() {
-  const count = await Member.countDocuments({ role: "KISHOR" });
-  return `${String(count + 1).padStart(6, "0")}`;
+  // Atomically increment the counter for hajriNumber
+  const counter = await Counter.findByIdAndUpdate(
+    { _id: "hajriNumber" },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  return String(counter.seq).padStart(3, "0");
 }
 
 module.exports = generateHajriNumber;

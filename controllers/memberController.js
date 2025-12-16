@@ -4,6 +4,7 @@ const generateHajriNumber = require("../utils/generateHajri");
 
 // ✅ CREATE MEMBER
 const createMember = async (req, res) => {
+    // ✅ CLEAN UP OPTIONAL OBJECTID FIELDS
   try {
     const data = { ...req.body };
 
@@ -18,10 +19,25 @@ const createMember = async (req, res) => {
       data.photoPublicId = req.file.filename;
     }
 
-    // ✅ PARSE ARRAY FIELDS
-    if (typeof data.skills === "string") data.skills = JSON.parse(data.skills);
-    if (typeof data.hobbies === "string") data.hobbies = JSON.parse(data.hobbies);
-    if (typeof data.sevaRoles === "string") data.sevaRoles = JSON.parse(data.sevaRoles);
+    if (data.poshakLeaderId === "") data.poshakLeaderId = undefined;
+    if (data.familyLeaderId === "") data.familyLeaderId = undefined;
+
+
+    // ✅ SAFE PARSE ARRAY FIELDS
+    function safeParseArrayField(field) {
+      if (typeof field === "string" && field.trim() !== "") {
+        try {
+          return JSON.parse(field);
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(field) ? field : [];
+    }
+
+    data.skills = safeParseArrayField(data.skills);
+    data.hobbies = safeParseArrayField(data.hobbies);
+    data.sevaRoles = safeParseArrayField(data.sevaRoles);
 
     const member = await Member.create(data);
 
@@ -87,8 +103,11 @@ const getMemberById = async (req, res) => {
 
 // ✅ UPDATE MEMBER
 const updateMember = async (req, res) => {
+    // ✅ CLEAN UP OPTIONAL OBJECTID FIELDS
   try {
     const updateData = { ...req.body };
+    if (updateData.poshakLeaderId === "") updateData.poshakLeaderId = undefined;
+    if (updateData.familyLeaderId === "") updateData.familyLeaderId = undefined;
 
     // ✅ UPDATE PHOTO
     if (req.file) {
@@ -102,9 +121,22 @@ const updateMember = async (req, res) => {
       updateData.photoPublicId = req.file.filename;
     }
 
-    if (typeof updateData.skills === "string") updateData.skills = JSON.parse(updateData.skills);
-    if (typeof updateData.hobbies === "string") updateData.hobbies = JSON.parse(updateData.hobbies);
-    if (typeof updateData.sevaRoles === "string") updateData.sevaRoles = JSON.parse(updateData.sevaRoles);
+
+    // ✅ SAFE PARSE ARRAY FIELDS
+    function safeParseArrayField(field) {
+      if (typeof field === "string" && field.trim() !== "") {
+        try {
+          return JSON.parse(field);
+        } catch {
+          return [];
+        }
+      }
+      return Array.isArray(field) ? field : [];
+    }
+
+    updateData.skills = safeParseArrayField(updateData.skills);
+    updateData.hobbies = safeParseArrayField(updateData.hobbies);
+    updateData.sevaRoles = safeParseArrayField(updateData.sevaRoles);
 
     const member = await Member.findByIdAndUpdate(
       req.params.id,

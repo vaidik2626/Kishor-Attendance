@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
+const connectDB = require('./config/db');
 const cors = require('cors');
 const path = require('path');
 const memberRoutes = require("./routes/memberRoutes");
@@ -11,24 +11,17 @@ const sevaRoutes = require('./routes/sevaRoutes');
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// CORS middleware should be at the top, before any other middleware or routes
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// MongoDB Connection
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/attendance_db');
-    console.log('MongoDB connected successfully');
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    process.exit(1);
-  }
-};
 
 connectDB();
 
@@ -39,52 +32,9 @@ app.use('/api/sabhas', sabhaRoutes);
 app.use('/api', sevaRoutes);
 app.use('/api', saintRoutes);
 
-// Root route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Attendance Backend API',
-    version: '1.0.0',
-    endpoints: {
-      // Auth endpoints
-      register: 'POST /api/auth/register',
-      login: 'POST /api/auth/login',
-      getProfile: 'GET /api/auth/profile',
-      
-      // User endpoints
-      createUser: 'POST /api/users',
-      getAllUsers: 'GET /api/users',
-      getUserById: 'GET /api/users/:id',
-      updateUser: 'PUT /api/users/:id',
-      deleteUser: 'DELETE /api/users/:id',
-      
-      // Sabha endpoints
-      createSabha: 'POST /api/sabhas',
-      getAllSabhas: 'GET /api/sabhas',
-      getSabhaById: 'GET /api/sabhas/:id',
-      updateSabha: 'PUT /api/sabhas/:id',
-      deleteSabha: 'DELETE /api/sabhas/:id',
-      
-      // Attendance endpoints
-      markAttendance: 'POST /api/sabhas/:sabhaId/attendance',
-      markBulkAttendance: 'POST /api/sabhas/:sabhaId/attendance/bulk',
-      getSabhaAttendanceReport: 'GET /api/sabhas/:sabhaId/attendance/report',
-      getUserAttendanceHistory: 'GET /api/users/:userId/attendance/history'
-    }
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Something went wrong!',
-    error: err.message
-  });
-});
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

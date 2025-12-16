@@ -118,7 +118,7 @@ const sabhaSchema = new mongoose.Schema(
     visibility: {
       type: String,
       enum: ['PUBLIC', 'REGISTERED', 'ROLE_BASED', 'USER_SPECIFIC'],
-      default: 'REGISTERED'
+      default: 'ROLE_BASED'
     },
 
     // if visibility === 'ROLE_BASED'

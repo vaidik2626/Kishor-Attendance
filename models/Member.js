@@ -262,6 +262,7 @@ const MemberSchema = new mongoose.Schema(
 
     kishorStatus: {
       type: String,
+      enum: ["ACTIVE", "INACTIVE", "LEFT", ""],
       required: [
         requiredForRoles([ROLES.KISHOR]),
         "Kishor status is required for Kishor"
@@ -274,10 +275,33 @@ const MemberSchema = new mongoose.Schema(
         requiredForRoles([ROLES.KISHOR]),
         "Sabha joining date is required for Kishor"
       ]
+    },
+
+    // Virtual (calculated) field for age (not stored in DB)
+    age: {
+      type: Number,
+      get() {
+        if (!this.dateOfBirth) return undefined;
+        const dob = new Date(this.dateOfBirth);
+        if (isNaN(dob)) return undefined;
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+          age--;
+        }
+        return age;
+      },
+      // Not required, not stored
+      required: false,
+      select: true
     }
+
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
 
