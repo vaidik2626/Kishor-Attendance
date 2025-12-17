@@ -13,7 +13,7 @@ const app = express();
 
 // CORS middleware should be at the top, before any other middleware or routes
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true
 }));
 
