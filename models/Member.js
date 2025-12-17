@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 
 const ROLES = {
   KISHOR: "KISHOR",
+  YUVAN: "YUVAN",
   POSHAK_LEADER: "POSHAK_LEADER",
   SAHSANCHALAK: "SAHSANCHALAK",
   MADADNISH: "MADADNISH",
@@ -43,10 +44,10 @@ const MemberSchema = new mongoose.Schema(
     // ========================
     hajriNumber: {
       type: String,
-      // auto-generated but only relevant for Kishor
+      // auto-generated but only relevant for Kishor and Yuvan
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Hajri Number is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Hajri Number is required for Kishor and Yuvan"
       ]
     },
 
@@ -55,6 +56,7 @@ const MemberSchema = new mongoose.Schema(
       required: [
         requiredForRoles([
           ROLES.KISHOR,
+          ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
@@ -69,10 +71,11 @@ const MemberSchema = new mongoose.Schema(
       type : String,
       required: [
         requiredForRoles([
-          ROLES.KISHOR
-      ]),
-      "Middle name is required for Kishor"
-    ]
+          ROLES.KISHOR,
+          ROLES.YUVAN
+        ]),
+        "Middle name is required for Kishor and Yuvan"
+      ]
     },
 
     lastName: {
@@ -80,6 +83,7 @@ const MemberSchema = new mongoose.Schema(
       required: [
         requiredForRoles([
           ROLES.KISHOR,
+          ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
@@ -110,8 +114,8 @@ const MemberSchema = new mongoose.Schema(
     personalMobile: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Personal mobile is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Personal mobile is required for Kishor and Yuvan"
       ]
     },
     homeMobile: String,
@@ -123,6 +127,7 @@ const MemberSchema = new mongoose.Schema(
       required: [
         requiredForRoles([
           ROLES.KISHOR,
+          ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
@@ -140,6 +145,7 @@ const MemberSchema = new mongoose.Schema(
       required: [
         requiredForRoles([
           ROLES.KISHOR,
+          ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
@@ -154,8 +160,8 @@ const MemberSchema = new mongoose.Schema(
     bloodGroup: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Blood group is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Blood group is required for Kishor and Yuvan"
       ]
       // You can add enum here if you want fixed groups
       // enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-']
@@ -165,15 +171,15 @@ const MemberSchema = new mongoose.Schema(
     currentStandard: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Current standard is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Current standard is required for Kishor and Yuvan"
       ]
     },
     schoolName: {
       type: String,
       required: [
         requiredForRoles([ROLES.KISHOR]),
-        "School name is required for Kishor"
+        "School name is required for Kishor and Yuvan"
       ]
     },
 
@@ -230,7 +236,8 @@ const MemberSchema = new mongoose.Schema(
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
           ROLES.SANCHALAK,
-          ROLES.KISHOR
+          ROLES.KISHOR,
+          ROLES.YUVAN
         ]),
         "Sabha Type is required for this role"
       ]
@@ -257,6 +264,10 @@ const MemberSchema = new mongoose.Schema(
       familyKishor: {
         type: Boolean,
         default: false
+      },
+      familyYuvan: {
+        type: Boolean,
+        default: false
       }
     },
 
@@ -264,16 +275,16 @@ const MemberSchema = new mongoose.Schema(
       type: String,
       enum: ["ACTIVE", "INACTIVE", "LEFT", ""],
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Kishor status is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Kishor/Yuvan status is required for Kishor and Yuvan"
       ]
     },
 
     sabhaJoiningDate: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "Sabha joining date is required for Kishor"
+        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        "Sabha joining date is required for Kishor and Yuvan"
       ]
     },
 

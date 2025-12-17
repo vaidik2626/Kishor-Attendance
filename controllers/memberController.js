@@ -9,7 +9,7 @@ const createMember = async (req, res) => {
     const data = { ...req.body };
 
     // ✅ AUTO HAJRI NUMBER FOR KISHOR
-    if (data.role === ROLES.KISHOR) {
+    if (data.role === ROLES.KISHOR || data.role === ROLES.YUVAN) {
       data.hajriNumber = await generateHajriNumber();
     }
 
@@ -194,7 +194,7 @@ const importMembersFromJSON = async (req, res) => {
     }
 
     for (let row of membersArray) {
-      if (row.role === ROLES.KISHOR && !row.hajriNumber) {
+      if ((row.role === ROLES.KISHOR || row.role === ROLES.YUVAN) && !row.hajriNumber) {
         row.hajriNumber = await generateHajriNumber();
       }
     }
