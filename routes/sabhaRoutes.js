@@ -32,11 +32,20 @@ router.post(
   sabhaController.createSabha
 );
 
-// Bulk import sabhas
+
 router.post(
-  '/bulk',
-  // authenticate, // optional
-  sabhaController.importSabhasFromJSON
+  '/add',
+  sabhaController.createEvent
+);
+
+router.get(
+  '/events',
+  sabhaController.getAllEvents
+);
+
+router.get(
+  '/events/:id',
+  sabhaController.getEventById
 );
 
 // List sabhas (with query params)

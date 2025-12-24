@@ -8,6 +8,7 @@ const sabhaRoutes = require('./routes/sabhaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const saintRoutes = require('./routes/saintRoutes');
 const sevaRoutes = require('./routes/sevaRoutes');
+const eventResponseRoutes = require('./routes/eventResponseRoutes');
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/members", memberRoutes);
 app.use('/api/sabhas', sabhaRoutes);
 app.use('/api', sevaRoutes);
 app.use('/api', saintRoutes);
+app.use('/api/event-response', eventResponseRoutes);
 
 
 // Start server

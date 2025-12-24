@@ -1,5 +1,6 @@
 const Sabha = require('../models/Sabha');
 const { Member } = require('../models/Member'); // Member model from your Member.js
+const Event = require('../models/Event');
 
 // Helpers
 function parseMaybeDate(value) {
@@ -17,6 +18,29 @@ function recalcAttendanceStats(sabhaDoc) {
   sabhaDoc.totalPresent = sabhaDoc.attendance.filter(a => a.isPresent).length;
   sabhaDoc.totalAbsent = sabhaDoc.attendance.filter(a => !a.isPresent).length;
 }
+
+
+// Create or return existing event for a sabha
+async function getOrCreateEvent({ sabhaId, name, date }) {
+  const sabha = await Sabha.findById(sabhaId);
+  if (!sabha) {
+    throw new Error('Sabha not found');
+  }
+
+  const eventDate = parseMaybeDate(date);
+  if (!eventDate) {
+    throw new Error('Invalid event date');
+  }
+
+  const existing = await Event.findOne({ sabhaId, name, date: eventDate });
+  if (existing) return existing;
+
+  const ev = new Event({ sabhaId, name, date: eventDate });
+  await ev.save();
+  return ev;
+}
+
+
 
 /**
  * Create a new sabha
@@ -49,6 +73,43 @@ const createSabha = async (req, res) => {
   }
 };
 
+const createEvent = async(req, res) => {
+  try {
+    const { sabhaId, name, date } = req.body;
+    if (!sabhaId || !name || !date) {
+      return res.status(400).json({ success: false, message: 'sabhaId, name and date are required' });
+    }
+    const event = await getOrCreateEvent({ sabhaId, name, date });
+    res.status(201).json({ success: true, data: event });
+  }
+  catch (err) {
+    res.status(500).json({ success: false, message: 'Error creating event', error: err.message });
+  } 
+};
+
+const getEventById = async(req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).populate("sabhaId", "sabhaType sabhaDate sabhaNo");
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+    res.status(200).json({ success: true, data: event });
+  }
+    catch (err) {
+      return res.status(500).json({ success: false, message: 'Error fetching event', error: err.message });
+    }
+  };
+
+const getAllEvents = async(req, res) => {
+  try {
+    const events = await Event.find().populate("sabhaId", "name type date").sort({ date: -1 });   
+
+    res.status(200).json({ success: true, data: events });
+  }
+  catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching events', error: err.message });
+  }
+};
 /**
  * Get all sabhas
  * Query params:
@@ -375,5 +436,8 @@ module.exports = {
   markBulkAttendance,
   getSabhaAttendanceReport,
   getUserAttendanceHistory,
-  importSabhasFromJSON
+  importSabhasFromJSON,
+  createEvent,
+  getEventById,
+  getAllEvents
 };
