@@ -14,7 +14,8 @@ const createSaint = async (req, res) => {
 // Get all Saints
 const getAllSaints = async (req, res) => {
   try {
-    const saints = await Saint.find().sort({ tag: 1, name: 1 });
+    // Always return oldest first and only include tag and name
+    const saints = await Saint.find({}, 'tag name').sort({ _id: 1 });
     res.status(200).json({ success: true, data: saints });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching saints', error: error.message });
