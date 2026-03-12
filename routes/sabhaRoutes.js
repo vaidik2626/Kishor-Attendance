@@ -11,8 +11,8 @@ const sabhaController = require('../controllers/sabhaController');
  * Routes:
  *
  * POST   /api/sabhas                     -> createSabha
- * GET    /api/sabhas                     -> getAllSabhas (filters: sabhaType, startDate, endDate, isCancelled, area, page, limit)
- * GET    /api/sabhas/:id                 -> getSabhaById
+ * GET    /api/sabhas                     -> getAllSabhas (filters: sabhaType, startDate, endDate, isCancelled, area, attendanceFilter, page, limit)
+ * GET    /api/sabhas/:id                 -> getSabhaById (filter: attendanceFilter)
  * PUT    /api/sabhas/:id                 -> updateSabha
  * DELETE /api/sabhas/:id                 -> deleteSabha
  *
@@ -20,6 +20,7 @@ const sabhaController = require('../controllers/sabhaController');
  *
  * POST   /api/sabhas/:sabhaId/attendance          -> markAttendance  (body: { userId, isPresent })
  * POST   /api/sabhas/:sabhaId/attendance/bulk     -> markBulkAttendance (body: { attendanceList: [{ userId, isPresent }, ...] })
+ * GET    /api/sabhas/:sabhaId/attendance/filter   -> getFilteredAttendance (query: status=all|present|absent)
  *
  * GET    /api/sabhas/:sabhaId/report     -> getSabhaAttendanceReport
  * GET    /api/sabhas/user/:userId/history-> getUserAttendanceHistory
@@ -88,6 +89,13 @@ router.post(
   '/:sabhaId/attendance/bulk',
   // authenticate, // optional
   sabhaController.markBulkAttendance
+);
+
+// Get filtered attendance (present/absent)
+router.get(
+  '/:sabhaId/attendance/filter',
+  // authenticate, // optional
+  sabhaController.getFilteredAttendance
 );
 
 // Sabha attendance report

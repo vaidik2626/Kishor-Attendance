@@ -117,6 +117,7 @@ const getAllEvents = async(req, res) => {
  *  - startDate, endDate  (ISO strings)
  *  - isCancelled (true|false)
  *  - area
+ *  - attendanceFilter (present|absent) - filter attendance records
  *  - visibility (optional)
  *  - page, limit (pagination)
  *
@@ -131,7 +132,7 @@ const getAllEvents = async(req, res) => {
  */
 const getAllSabhas = async (req, res) => {
   try {
-    const { sabhaType, startDate, endDate, isCancelled, area, page = 1, limit = 20 } = req.query;
+    const { sabhaType, startDate, endDate, isCancelled, area, attendanceFilter, page = 1, limit = 20 } = req.query;
 
     const filter = {};
 
@@ -154,13 +155,24 @@ const getAllSabhas = async (req, res) => {
 
     const [items, total] = await Promise.all([q.exec(), Sabha.countDocuments(filter)]);
 
+    // Filter attendance records if attendanceFilter is provided
+    let dataToReturn = items;
+    if (attendanceFilter === 'present' || attendanceFilter === 'absent') {
+      const isPresent = attendanceFilter === 'present';
+      dataToReturn = items.map(item => {
+        const sabhaObj = item.toObject ? item.toObject() : item;
+        sabhaObj.attendance = sabhaObj.attendance.filter(a => a.isPresent === isPresent);
+        return sabhaObj;
+      });
+    }
+
     res.status(200).json({
       success: true,
-      count: items.length,
+      count: dataToReturn.length,
       total,
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
-      data: items
+      data: dataToReturn
     });
 
   } catch (err) {
@@ -170,14 +182,26 @@ const getAllSabhas = async (req, res) => {
 
 /**
  * Get one sabha by id
+ * Query params:
+ *  - attendanceFilter (present|absent) - filter attendance records
  */
 const getSabhaById = async (req, res) => {
   try {
+    const { attendanceFilter } = req.query;
     const sabha = await Sabha.findById(req.params.id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
-    res.status(200).json({ success: true, data: sabha });
+    // Filter attendance records if attendanceFilter is provided
+    let dataToReturn = sabha;
+    if (attendanceFilter === 'present' || attendanceFilter === 'absent') {
+      const isPresent = attendanceFilter === 'present';
+      const sabhaObj = sabha.toObject ? sabha.toObject() : sabha;
+      sabhaObj.attendance = sabhaObj.attendance.filter(a => a.isPresent === isPresent);
+      dataToReturn = sabhaObj;
+    }
+
+    res.status(200).json({ success: true, data: dataToReturn });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error fetching sabha', error: err.message });
   }
@@ -426,6 +450,56 @@ const importSabhasFromJSON = async (req, res) => {
   }
 };
 
+/**
+ * Get filtered attendance for a specific sabha
+ * Query params:
+ *  - status (all|present|absent) - REQUIRED
+ *    - all: returns all attendance records
+ *    - present: returns only present attendance records
+ *    - absent: returns only absent attendance records
+ */
+const getFilteredAttendance = async (req, res) => {
+  try {
+    const { sabhaId } = req.params;
+    const { status } = req.query;
+
+    if (!status || (status !== 'all' && status !== 'present' && status !== 'absent')) {
+      return res.status(400).json({ success: false, message: 'status must be "all", "present", or "absent"' });
+    }
+
+    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile email');
+
+    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    let filteredAttendance = sabha.attendance;
+    
+    if (status === 'present') {
+      filteredAttendance = sabha.attendance.filter(a => a.isPresent === true);
+    } else if (status === 'absent') {
+      filteredAttendance = sabha.attendance.filter(a => a.isPresent === false);
+    }
+    // if status === 'all', use all attendance records
+
+    res.status(200).json({
+      success: true,
+      data: {
+        sabhaNo: sabha.sabhaNo,
+        sabhaType: sabha.sabhaType,
+        sabhaDate: sabha.sabhaDate,
+        sabhaStartTime: sabha.sabhaStartTime,
+        sabhaEndTime: sabha.sabhaEndTime,
+        status: status,
+        count: filteredAttendance.length,
+        presentCount: sabha.attendance.filter(a => a.isPresent === true).length,
+        absentCount: sabha.attendance.filter(a => a.isPresent === false).length,
+        attendance: filteredAttendance
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error fetching filtered attendance', error: err.message });
+  }
+};
+
 module.exports = {
   createSabha,
   getAllSabhas,
@@ -439,5 +513,6 @@ module.exports = {
   importSabhasFromJSON,
   createEvent,
   getEventById,
-  getAllEvents
+  getAllEvents,
+  getFilteredAttendance
 };
