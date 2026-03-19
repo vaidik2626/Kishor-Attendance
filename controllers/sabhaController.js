@@ -1,6 +1,7 @@
 const Sabha = require('../models/Sabha');
 const { Member } = require('../models/Member'); // Member model from your Member.js
 const Event = require('../models/Event');
+const mongoose = require('mongoose');
 
 // Helpers
 function parseMaybeDate(value) {
@@ -79,6 +80,9 @@ const createEvent = async(req, res) => {
     if (!sabhaId || !name || !date) {
       return res.status(400).json({ success: false, message: 'sabhaId, name and date are required' });
     }
+    if (!mongoose.Types.ObjectId.isValid(sabhaId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
     const event = await getOrCreateEvent({ sabhaId, name, date });
     res.status(201).json({ success: true, data: event });
   }
@@ -89,7 +93,12 @@ const createEvent = async(req, res) => {
 
 const getEventById = async(req, res) => {
   try {
-    const event = await Event.findById(req.params.id).populate("sabhaId", "sabhaType sabhaDate sabhaNo");
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid event ID' });
+    }
+
+    const event = await Event.findById(id).populate("sabhaId", "sabhaType sabhaDate sabhaNo");
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
     }
@@ -187,8 +196,13 @@ const getAllSabhas = async (req, res) => {
  */
 const getSabhaById = async (req, res) => {
   try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const { attendanceFilter } = req.query;
-    const sabha = await Sabha.findById(req.params.id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    const sabha = await Sabha.findById(id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
@@ -214,6 +228,11 @@ const getSabhaById = async (req, res) => {
  */
 const updateSabha = async (req, res) => {
   try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const update = { ...req.body };
 
     if (typeof update.attendance === 'string') {
@@ -252,7 +271,12 @@ const updateSabha = async (req, res) => {
  */
 const deleteSabha = async (req, res) => {
   try {
-    const sabha = await Sabha.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
+    const sabha = await Sabha.findByIdAndDelete(id);
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
     res.status(200).json({ success: true, message: 'Sabha deleted' });
@@ -268,6 +292,10 @@ const deleteSabha = async (req, res) => {
 const markAttendance = async (req, res) => {
   try {
     const { sabhaId } = req.params;
+    if (!sabhaId || !mongoose.Types.ObjectId.isValid(sabhaId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const { userId, isPresent } = req.body;
 
     if (!userId) return res.status(400).json({ success: false, message: 'userId is required' });
@@ -303,6 +331,10 @@ const markAttendance = async (req, res) => {
 const markBulkAttendance = async (req, res) => {
   try {
     const { sabhaId } = req.params;
+    if (!sabhaId || !mongoose.Types.ObjectId.isValid(sabhaId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const { attendanceList } = req.body;
 
     if (!Array.isArray(attendanceList)) {
@@ -342,6 +374,10 @@ const markBulkAttendance = async (req, res) => {
 const getSabhaAttendanceReport = async (req, res) => {
   try {
     const { sabhaId } = req.params;
+    if (!sabhaId || !mongoose.Types.ObjectId.isValid(sabhaId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
@@ -461,6 +497,10 @@ const importSabhasFromJSON = async (req, res) => {
 const getFilteredAttendance = async (req, res) => {
   try {
     const { sabhaId } = req.params;
+    if (!sabhaId || !mongoose.Types.ObjectId.isValid(sabhaId)) {
+      return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
+    }
+
     const { status } = req.query;
 
     if (!status || (status !== 'all' && status !== 'present' && status !== 'absent')) {
