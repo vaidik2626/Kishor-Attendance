@@ -1,5 +1,5 @@
 const Sabha = require('../models/Sabha');
-const { Member } = require('../models/Member'); // Member model from your Member.js
+const { Member, ROLES } = require('../models/Member'); // Member model from your Member.js
 const Event = require('../models/Event');
 const mongoose = require('mongoose');
 
@@ -10,14 +10,76 @@ function parseMaybeDate(value) {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
+function parseBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return false;
+}
+
+function isAttendancePresent(record) {
+  return record && record.isPresent === true;
+}
+
+function isAttendanceAbsent(record) {
+  return !isAttendancePresent(record);
+}
+
 function recalcAttendanceStats(sabhaDoc) {
   if (!Array.isArray(sabhaDoc.attendance)) {
     sabhaDoc.totalPresent = 0;
     sabhaDoc.totalAbsent = 0;
     return;
   }
-  sabhaDoc.totalPresent = sabhaDoc.attendance.filter(a => a.isPresent).length;
-  sabhaDoc.totalAbsent = sabhaDoc.attendance.filter(a => !a.isPresent).length;
+  sabhaDoc.totalPresent = sabhaDoc.attendance.filter(isAttendancePresent).length;
+  sabhaDoc.totalAbsent = sabhaDoc.attendance.filter(isAttendanceAbsent).length;
+}
+
+async function ensureAllSabhaMembersMarked(sabha) {
+  if (!sabha || !sabha.sabhaType) return sabha;
+
+  const now = new Date();
+  let isEnded = false;
+  if (sabha.sabhaEndTime) {
+    isEnded = sabha.sabhaEndTime <= now;
+  } else if (sabha.sabhaDate) {
+    const endOfDay = new Date(sabha.sabhaDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    isEnded = endOfDay <= now;
+  }
+  if (!isEnded) return sabha;
+
+  const memberQuery = {
+    sabhaType: sabha.sabhaType,
+    $or: [
+      { role: { $in: [ROLES.KISHOR, ROLES.YUVAN] }, kishorStatus: 'ACTIVE' },
+      { role: { $nin: [ROLES.KISHOR, ROLES.YUVAN] } }
+    ]
+  };
+
+  const memberIds = await Member.find(memberQuery, '_id').lean();
+  if (!Array.isArray(memberIds) || memberIds.length === 0) return sabha;
+
+  const existingIds = new Set((sabha.attendance || []).map(a => a.user.toString()));
+  let added = false;
+
+  const baselineAttendance = Array.isArray(sabha.attendance) ? sabha.attendance : [];
+
+  for (const mem of memberIds) {
+    const idStr = mem._id.toString();
+    if (!existingIds.has(idStr)) {
+      baselineAttendance.push({ user: mem._id, isPresent: false, markedAt: new Date() });
+      added = true;
+    }
+  }
+
+  if (added) {
+    sabha.attendance = baselineAttendance;
+    recalcAttendanceStats(sabha);
+    await sabha.save();
+    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+  }
+
+  return sabha;
 }
 
 
@@ -55,6 +117,14 @@ const createSabha = async (req, res) => {
     // parse attendance if stringified
     if (typeof body.attendance === 'string') {
       try { body.attendance = JSON.parse(body.attendance); } catch (e) { body.attendance = []; }
+    }
+
+    if (Array.isArray(body.attendance)) {
+      body.attendance = body.attendance.map(a => ({
+        user: a.user,
+        isPresent: parseBoolean(a.isPresent),
+        markedAt: a.markedAt ? parseMaybeDate(a.markedAt) : new Date()
+      }));
     }
 
     // parse date/time fields
@@ -164,13 +234,15 @@ const getAllSabhas = async (req, res) => {
 
     const [items, total] = await Promise.all([q.exec(), Sabha.countDocuments(filter)]);
 
+    const finalizedItems = await Promise.all(items.map(async item => await ensureAllSabhaMembersMarked(item)));
+
     // Filter attendance records if attendanceFilter is provided
-    let dataToReturn = items;
+    let dataToReturn = finalizedItems;
     if (attendanceFilter === 'present' || attendanceFilter === 'absent') {
       const isPresent = attendanceFilter === 'present';
-      dataToReturn = items.map(item => {
+      dataToReturn = finalizedItems.map(item => {
         const sabhaObj = item.toObject ? item.toObject() : item;
-        sabhaObj.attendance = sabhaObj.attendance.filter(a => a.isPresent === isPresent);
+        sabhaObj.attendance = sabhaObj.attendance.filter(a => isPresent ? isAttendancePresent(a) : isAttendanceAbsent(a));
         return sabhaObj;
       });
     }
@@ -202,16 +274,18 @@ const getSabhaById = async (req, res) => {
     }
 
     const { attendanceFilter } = req.query;
-    const sabha = await Sabha.findById(id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    let sabha = await Sabha.findById(id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    sabha = await ensureAllSabhaMembersMarked(sabha);
 
     // Filter attendance records if attendanceFilter is provided
     let dataToReturn = sabha;
     if (attendanceFilter === 'present' || attendanceFilter === 'absent') {
       const isPresent = attendanceFilter === 'present';
       const sabhaObj = sabha.toObject ? sabha.toObject() : sabha;
-      sabhaObj.attendance = sabhaObj.attendance.filter(a => a.isPresent === isPresent);
+      sabhaObj.attendance = sabhaObj.attendance.filter(a => isPresent ? isAttendancePresent(a) : isAttendanceAbsent(a));
       dataToReturn = sabhaObj;
     }
 
@@ -307,11 +381,12 @@ const markAttendance = async (req, res) => {
     if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
     const idx = sabha.attendance.findIndex(a => a.user.toString() === userId);
+    const present = parseBoolean(isPresent);
     if (idx !== -1) {
-      sabha.attendance[idx].isPresent = !!isPresent;
+      sabha.attendance[idx].isPresent = present;
       sabha.attendance[idx].markedAt = new Date();
     } else {
-      sabha.attendance.push({ user: userId, isPresent: !!isPresent, markedAt: new Date() });
+      sabha.attendance.push({ user: userId, isPresent: present, markedAt: new Date() });
     }
 
     recalcAttendanceStats(sabha);
@@ -349,12 +424,13 @@ const markBulkAttendance = async (req, res) => {
       const memberExists = await Member.exists({ _id: item.userId });
       if (!memberExists) continue; // skip invalid users
 
+      const present = parseBoolean(item.isPresent);
       const idx = sabha.attendance.findIndex(a => a.user.toString() === item.userId);
       if (idx !== -1) {
-        sabha.attendance[idx].isPresent = !!item.isPresent;
+        sabha.attendance[idx].isPresent = present;
         sabha.attendance[idx].markedAt = new Date();
       } else {
-        sabha.attendance.push({ user: item.userId, isPresent: !!item.isPresent, markedAt: new Date() });
+        sabha.attendance.push({ user: item.userId, isPresent: present, markedAt: new Date() });
       }
     }
 
@@ -378,9 +454,11 @@ const getSabhaAttendanceReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid sabha ID' });
     }
 
-    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    let sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    sabha = await ensureAllSabhaMembersMarked(sabha);
 
     const report = {
       sabhaNo: sabha.sabhaNo,
@@ -391,8 +469,8 @@ const getSabhaAttendanceReport = async (req, res) => {
       totalPresent: sabha.totalPresent,
       totalAbsent: sabha.totalAbsent,
       totalUsers: sabha.attendance.length,
-      presentUsers: sabha.attendance.filter(a => a.isPresent),
-      absentUsers: sabha.attendance.filter(a => !a.isPresent)
+      presentUsers: sabha.attendance.filter(isAttendancePresent),
+      absentUsers: sabha.attendance.filter(isAttendanceAbsent)
     };
 
     res.status(200).json({ success: true, data: report });
@@ -469,7 +547,7 @@ const importSabhasFromJSON = async (req, res) => {
       isCancelled: row.isCancelled === true,
       reasonForCancellation: row.reasonForCancellation || '',
       reason: row.reason || '',
-      attendance: Array.isArray(row.attendance) ? row.attendance.map(a => ({ user: a.user, isPresent: !!a.isPresent, markedAt: a.markedAt ? parseMaybeDate(a.markedAt) : undefined })) : [],
+      attendance: Array.isArray(row.attendance) ? row.attendance.map(a => ({ user: a.user, isPresent: parseBoolean(a.isPresent), markedAt: a.markedAt ? parseMaybeDate(a.markedAt) : undefined })) : [],
       totalPresent: typeof row.totalPresent === 'number' ? row.totalPresent : undefined,
       totalAbsent: typeof row.totalAbsent === 'number' ? row.totalAbsent : undefined,
       area: row.area || undefined,
@@ -507,16 +585,18 @@ const getFilteredAttendance = async (req, res) => {
       return res.status(400).json({ success: false, message: 'status must be "all", "present", or "absent"' });
     }
 
-    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile email');
+    let sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile email');
 
     if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+
+    sabha = await ensureAllSabhaMembersMarked(sabha);
 
     let filteredAttendance = sabha.attendance;
     
     if (status === 'present') {
-      filteredAttendance = sabha.attendance.filter(a => a.isPresent === true);
+      filteredAttendance = sabha.attendance.filter(isAttendancePresent);
     } else if (status === 'absent') {
-      filteredAttendance = sabha.attendance.filter(a => a.isPresent === false);
+      filteredAttendance = sabha.attendance.filter(isAttendanceAbsent);
     }
     // if status === 'all', use all attendance records
 
@@ -530,8 +610,8 @@ const getFilteredAttendance = async (req, res) => {
         sabhaEndTime: sabha.sabhaEndTime,
         status: status,
         count: filteredAttendance.length,
-        presentCount: sabha.attendance.filter(a => a.isPresent === true).length,
-        absentCount: sabha.attendance.filter(a => a.isPresent === false).length,
+        presentCount: sabha.attendance.filter(isAttendancePresent).length,
+        absentCount: sabha.attendance.filter(isAttendanceAbsent).length,
         attendance: filteredAttendance
       }
     });
