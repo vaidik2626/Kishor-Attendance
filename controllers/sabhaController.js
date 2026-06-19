@@ -489,7 +489,19 @@ const getUserAttendanceHistory = async (req, res) => {
     const member = await Member.findById(userId);
     if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
-    const sabhas = await Sabha.find({ 'attendance.user': userId }).sort({ sabhaDate: -1 });
+    const { startDate, endDate } = req.query;
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter.$lte = end;
+    }
+
+    const query = { 'attendance.user': userId };
+    if (startDate || endDate) query.sabhaDate = dateFilter;
+
+    const sabhas = await Sabha.find(query).sort({ sabhaDate: -1 });
 
     const history = sabhas.map(sabha => {
       const att = sabha.attendance.find(a => a.user.toString() === userId) || {};
