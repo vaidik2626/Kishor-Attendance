@@ -163,10 +163,24 @@ sabhaSchema.pre('save', async function () {
   // generate sabhaNo only once
   if (!this.sabhaNo && this.area) {
     const areaCode = getAreaCode(this.area);
-    const count = await mongoose.model('Sabha').countDocuments({ area: this.area });
+    const prefix = `SAB-${areaCode}-`;
 
-    // FIXED: second arg should be '0'
-    this.sabhaNo = `SAB-${areaCode}-${String(count + 1).padStart(6, '0')}`;
+    // Base the next number on the highest sabhaNo actually in use for this
+    // area, not a raw document count — countDocuments() undercounts once any
+    // sabha in the area has been deleted, which reproduces an already-used
+    // number and collides with the unique index.
+    const lastSabha = await mongoose.model('Sabha')
+      .findOne({ sabhaNo: { $regex: `^${prefix}\\d+$` } })
+      .sort({ sabhaNo: -1 })
+      .lean();
+
+    let nextNum = 1;
+    if (lastSabha) {
+      const match = lastSabha.sabhaNo.match(/(\d+)$/);
+      if (match) nextNum = parseInt(match[1], 10) + 1;
+    }
+
+    this.sabhaNo = `${prefix}${String(nextNum).padStart(6, '0')}`;
   }
 
   // Validate start/end times
@@ -183,6 +197,12 @@ sabhaSchema.pre('save', async function () {
     this.totalAbsent = 0;
   }
 });
+
+// Speeds up the common list queries (calendar/dashboard/history filter by
+// date range, optionally narrowed by type/area).
+sabhaSchema.index({ sabhaDate: -1 });
+sabhaSchema.index({ sabhaType: 1, sabhaDate: -1 });
+sabhaSchema.index({ area: 1, sabhaDate: -1 });
 
 const Sabha = mongoose.model('Sabha', sabhaSchema);
 

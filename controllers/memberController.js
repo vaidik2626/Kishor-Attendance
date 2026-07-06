@@ -62,7 +62,7 @@ const createMember = async (req, res) => {
 // ✅ GET ALL MEMBERS
 const getAllMembers = async (req, res) => {
   try {
-    const members = await Member.find().sort({ createdAt: -1 });
+    const members = await Member.find().sort({ createdAt: -1 }).lean();
 
     res.status(200).json({
       success: true,

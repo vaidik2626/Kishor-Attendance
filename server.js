@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const connectDB = require('./config/db');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const memberRoutes = require("./routes/memberRoutes");
 const sabhaRoutes = require('./routes/sabhaRoutes');
@@ -30,6 +31,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

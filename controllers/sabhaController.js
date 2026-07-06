@@ -34,6 +34,47 @@ function recalcAttendanceStats(sabhaDoc) {
   sabhaDoc.totalAbsent = sabhaDoc.attendance.filter(isAttendanceAbsent).length;
 }
 
+// Recomputes totalPresent/totalAbsent server-side from whatever the
+// attendance array actually contains at the moment the update runs, so it
+// can never clobber a concurrent write the way a read-modify-write .save() would.
+async function recalcAttendanceStatsAtomic(sabhaId) {
+  await Sabha.updateOne(
+    { _id: sabhaId },
+    [
+      {
+        $set: {
+          totalPresent: {
+            $size: { $filter: { input: { $ifNull: ['$attendance', []] }, cond: { $eq: ['$$this.isPresent', true] } } }
+          },
+          totalAbsent: {
+            $size: { $filter: { input: { $ifNull: ['$attendance', []] }, cond: { $eq: ['$$this.isPresent', false] } } }
+          }
+        }
+      }
+    ],
+    { updatePipeline: true }
+  );
+}
+
+// Atomically sets attendance for a single user: updates the existing
+// subdocument if present, otherwise pushes a new one. Both operations are
+// guarded by a query condition ('attendance.user' present/absent) that
+// MongoDB evaluates atomically against the document's current state, so
+// concurrent calls for the same user can never both push and create a duplicate.
+async function upsertAttendanceAtomic(sabhaId, userId, isPresent, markedAt = new Date()) {
+  const updateResult = await Sabha.updateOne(
+    { _id: sabhaId, 'attendance.user': userId },
+    { $set: { 'attendance.$.isPresent': isPresent, 'attendance.$.markedAt': markedAt } }
+  );
+
+  if (updateResult.matchedCount === 0) {
+    await Sabha.updateOne(
+      { _id: sabhaId, 'attendance.user': { $ne: userId } },
+      { $push: { attendance: { user: userId, isPresent, markedAt } } }
+    );
+  }
+}
+
 async function ensureAllSabhaMembersMarked(sabha) {
   if (!sabha || !sabha.sabhaType) return sabha;
 
@@ -60,23 +101,22 @@ async function ensureAllSabhaMembersMarked(sabha) {
   if (!Array.isArray(memberIds) || memberIds.length === 0) return sabha;
 
   const existingIds = new Set((sabha.attendance || []).map(a => a.user.toString()));
-  let added = false;
+  const missing = memberIds.filter(mem => !existingIds.has(mem._id.toString()));
 
-  const baselineAttendance = Array.isArray(sabha.attendance) ? sabha.attendance : [];
-
-  for (const mem of memberIds) {
-    const idStr = mem._id.toString();
-    if (!existingIds.has(idStr)) {
-      baselineAttendance.push({ user: mem._id, isPresent: false, markedAt: new Date() });
-      added = true;
-    }
-  }
-
-  if (added) {
-    sabha.attendance = baselineAttendance;
-    recalcAttendanceStats(sabha);
-    await sabha.save();
-    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+  if (missing.length > 0) {
+    // Each push is guarded by 'attendance.user': { $ne } so it only takes
+    // effect if that member is still missing at the moment it runs, even if
+    // this same function is running concurrently for other requests.
+    const now = new Date();
+    const bulkOps = missing.map(mem => ({
+      updateOne: {
+        filter: { _id: sabha._id, 'attendance.user': { $ne: mem._id } },
+        update: { $push: { attendance: { user: mem._id, isPresent: false, markedAt: now } } }
+      }
+    }));
+    await Sabha.bulkWrite(bulkOps);
+    await recalcAttendanceStatsAtomic(sabha._id);
+    sabha = await Sabha.findById(sabha._id).populate('attendance.user', 'firstName lastName smkNo personalMobile');
   }
 
   return sabha;
@@ -132,9 +172,22 @@ const createSabha = async (req, res) => {
     if (body.sabhaStartTime) body.sabhaStartTime = parseMaybeDate(body.sabhaStartTime);
     if (body.sabhaEndTime) body.sabhaEndTime = parseMaybeDate(body.sabhaEndTime);
 
-    // create and save (pre save hook in model will compute sabhaNo and attendance totals)
-    const sabha = new Sabha(body);
-    await sabha.save();
+    // create and save (pre save hook in model will compute sabhaNo and attendance totals).
+    // Retry a couple of times on a sabhaNo collision — two requests creating a
+    // sabha for the same area at nearly the same instant can both compute the
+    // same "next number" before either has saved.
+    let sabha;
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        sabha = new Sabha(body);
+        await sabha.save();
+        break;
+      } catch (err) {
+        const isSabhaNoCollision = err.code === 11000 && err.keyPattern && 'sabhaNo' in err.keyPattern;
+        if (!isSabhaNoCollision || attempt === maxAttempts) throw err;
+      }
+    }
 
     const populated = await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
@@ -211,7 +264,7 @@ const getAllEvents = async(req, res) => {
  */
 const getAllSabhas = async (req, res) => {
   try {
-    const { sabhaType, startDate, endDate, isCancelled, area, attendanceFilter, page = 1, limit = 20 } = req.query;
+    const { sabhaType, startDate, endDate, isCancelled, area, attendanceFilter, includeAttendance, page = 1, limit = 20 } = req.query;
 
     const filter = {};
 
@@ -227,22 +280,33 @@ const getAllSabhas = async (req, res) => {
 
     // basic pagination
     const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.max(1, parseInt(limit, 10));
-    const q = Sabha.find(filter).sort({ sabhaDate: -1 }).skip(skip).limit(parseInt(limit, 10));
+    const isFilteringByStatus = attendanceFilter === 'present' || attendanceFilter === 'absent';
+    const wantsAttendance = isFilteringByStatus || includeAttendance === 'true';
 
-    // populate attendance.user limited fields
-    q.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    // Calendar/dashboard views only need sabha metadata, not per-member
+    // attendance records — skip the attendance populate and the per-item
+    // member-sync (which each cost their own Member query) unless a caller
+    // explicitly asks for attendance (report pages pass includeAttendance=true,
+    // or attendanceFilter to also narrow by status). This keeps the common,
+    // frequently-polled list requests cheap without dropping data callers rely on.
+    let q = Sabha.find(filter).sort({ sabhaDate: -1 }).skip(skip).limit(parseInt(limit, 10));
+    if (wantsAttendance) {
+      q = q.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    } else {
+      q = q.select('-attendance').lean();
+    }
 
     const [items, total] = await Promise.all([q.exec(), Sabha.countDocuments(filter)]);
 
-    const finalizedItems = await Promise.all(items.map(async item => await ensureAllSabhaMembersMarked(item)));
-
-    // Filter attendance records if attendanceFilter is provided
-    let dataToReturn = finalizedItems;
-    if (attendanceFilter === 'present' || attendanceFilter === 'absent') {
-      const isPresent = attendanceFilter === 'present';
+    let dataToReturn = items;
+    if (wantsAttendance) {
+      const finalizedItems = await Promise.all(items.map(async item => await ensureAllSabhaMembersMarked(item)));
       dataToReturn = finalizedItems.map(item => {
         const sabhaObj = item.toObject ? item.toObject() : item;
-        sabhaObj.attendance = sabhaObj.attendance.filter(a => isPresent ? isAttendancePresent(a) : isAttendanceAbsent(a));
+        if (isFilteringByStatus) {
+          const isPresent = attendanceFilter === 'present';
+          sabhaObj.attendance = sabhaObj.attendance.filter(a => isPresent ? isAttendancePresent(a) : isAttendanceAbsent(a));
+        }
         return sabhaObj;
       });
     }
@@ -374,24 +438,17 @@ const markAttendance = async (req, res) => {
 
     if (!userId) return res.status(400).json({ success: false, message: 'userId is required' });
 
-    const sabha = await Sabha.findById(sabhaId);
-    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+    const sabhaExists = await Sabha.exists({ _id: sabhaId });
+    if (!sabhaExists) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
     const member = await Member.findById(userId);
     if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
-    const idx = sabha.attendance.findIndex(a => a.user.toString() === userId);
     const present = parseBoolean(isPresent);
-    if (idx !== -1) {
-      sabha.attendance[idx].isPresent = present;
-      sabha.attendance[idx].markedAt = new Date();
-    } else {
-      sabha.attendance.push({ user: userId, isPresent: present, markedAt: new Date() });
-    }
+    await upsertAttendanceAtomic(sabhaId, userId, present);
+    await recalcAttendanceStatsAtomic(sabhaId);
 
-    recalcAttendanceStats(sabha);
-    await sabha.save();
-    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     res.status(200).json({ success: true, message: 'Attendance updated', data: sabha });
   } catch (err) {
@@ -416,27 +473,23 @@ const markBulkAttendance = async (req, res) => {
       return res.status(400).json({ success: false, message: 'attendanceList must be an array' });
     }
 
-    const sabha = await Sabha.findById(sabhaId);
-    if (!sabha) return res.status(404).json({ success: false, message: 'Sabha not found' });
+    const sabhaExists = await Sabha.exists({ _id: sabhaId });
+    if (!sabhaExists) return res.status(404).json({ success: false, message: 'Sabha not found' });
 
-    for (const item of attendanceList) {
-      if (!item.userId) continue;
-      const memberExists = await Member.exists({ _id: item.userId });
-      if (!memberExists) continue; // skip invalid users
+    const candidateIds = attendanceList.map(item => item.userId).filter(Boolean);
+    const existingMembers = await Member.find({ _id: { $in: candidateIds } }, '_id').lean();
+    const existingMemberIds = new Set(existingMembers.map(m => m._id.toString()));
+    const validItems = attendanceList.filter(item => item.userId && existingMemberIds.has(item.userId.toString()));
 
-      const present = parseBoolean(item.isPresent);
-      const idx = sabha.attendance.findIndex(a => a.user.toString() === item.userId);
-      if (idx !== -1) {
-        sabha.attendance[idx].isPresent = present;
-        sabha.attendance[idx].markedAt = new Date();
-      } else {
-        sabha.attendance.push({ user: item.userId, isPresent: present, markedAt: new Date() });
-      }
-    }
+    // Each user's update/push is independently guarded (see upsertAttendanceAtomic),
+    // so concurrent bulk/single mark requests can't race each other into duplicates.
+    const now = new Date();
+    await Promise.all(
+      validItems.map(item => upsertAttendanceAtomic(sabhaId, item.userId, parseBoolean(item.isPresent), now))
+    );
 
-    recalcAttendanceStats(sabha);
-    await sabha.save();
-    await sabha.populate('attendance.user', 'firstName lastName smkNo personalMobile');
+    await recalcAttendanceStatsAtomic(sabhaId);
+    const sabha = await Sabha.findById(sabhaId).populate('attendance.user', 'firstName lastName smkNo personalMobile');
 
     res.status(200).json({ success: true, message: 'Bulk attendance updated', data: sabha });
   } catch (err) {

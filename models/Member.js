@@ -316,5 +316,10 @@ const MemberSchema = new mongoose.Schema(
   }
 );
 
+// Speeds up attendance member-sync (role + sabhaType + kishorStatus lookups)
+// and the getAllMembers list sort.
+MemberSchema.index({ role: 1, sabhaType: 1, kishorStatus: 1 });
+MemberSchema.index({ createdAt: -1 });
+
 const Member = mongoose.model("Member", MemberSchema);
 module.exports = { Member, ROLES };
