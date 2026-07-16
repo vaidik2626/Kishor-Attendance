@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/multer");
+const { identify } = require("../middleware/authMiddleware");
 
 const {
   createMember,
@@ -20,11 +21,12 @@ router.post("/bulk", importMembersFromJSON);
 // ✅ GET ALL
 router.get("/", getAllMembers);
 
-// ✅ GET ONE
-router.get("/:id", getMemberById);
+// ✅ GET ONE (identify: scopes Poshak Leader callers to their own members;
+// no-op for today's unauthenticated/admin usage)
+router.get("/:id", identify, getMemberById);
 
-// ✅ UPDATE
-router.put("/:id", upload.single("photo"), updateMember);
+// ✅ UPDATE (identify: same ownership scoping as above)
+router.put("/:id", identify, upload.single("photo"), updateMember);
 
 // ✅ DELETE
 router.delete("/:id", deleteMember);

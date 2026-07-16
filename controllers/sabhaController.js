@@ -542,6 +542,12 @@ const getUserAttendanceHistory = async (req, res) => {
     const member = await Member.findById(userId);
     if (!member) return res.status(404).json({ success: false, message: 'Member not found' });
 
+    // If this request identified as a Poshak Leader, they may only view the
+    // attendance history of their own members.
+    if (req.leader && String(member.poshakLeaderId) !== String(req.leader._id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this history' });
+    }
+
     const { startDate, endDate } = req.query;
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);

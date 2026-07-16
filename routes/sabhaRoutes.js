@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const sabhaController = require('../controllers/sabhaController');
+const { identify } = require('../middleware/authMiddleware');
 
 // OPTIONAL: if you have auth middleware, require it and use where needed
 // const { authenticate, authorize } = require('../middleware/auth');
@@ -105,10 +106,11 @@ router.get(
   sabhaController.getSabhaAttendanceReport
 );
 
-// User attendance history across sabhas
+// User attendance history across sabhas (identify: scopes Poshak Leader
+// callers to their own members; no-op for today's unauthenticated/admin usage)
 router.get(
   '/user/:userId/history',
-  // authenticate, // optional
+  identify,
   sabhaController.getUserAttendanceHistory
 );
 

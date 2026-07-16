@@ -1,12 +1,15 @@
 const { Member, ROLES } = require("../models/Member");
 const cloudinary = require("../config/cloudinary");
 const generateHajriNumber = require("../utils/generateHajri");
+const generateRandomPassword = require("../utils/generatePassword");
+const { normalizeMemberBody, applyPhotoReplacement, maybeHashPassword } = require("../utils/memberUpdate");
 
 // ✅ CREATE MEMBER
 const createMember = async (req, res) => {
-    // ✅ CLEAN UP OPTIONAL OBJECTID FIELDS
   try {
-    const data = { ...req.body };
+    const data = normalizeMemberBody(req.body);
+    // Login passwords are always system-generated, never admin-typed.
+    delete data.password;
 
     // ✅ AUTO HAJRI NUMBER FOR KISHOR
     if (data.role === ROLES.KISHOR || data.role === ROLES.YUVAN) {
@@ -19,32 +22,21 @@ const createMember = async (req, res) => {
       data.photoPublicId = req.file.filename;
     }
 
-    if (data.poshakLeaderId === "") data.poshakLeaderId = undefined;
-    if (data.familyLeaderId === "") data.familyLeaderId = undefined;
-
-
-    // ✅ SAFE PARSE ARRAY FIELDS
-    function safeParseArrayField(field) {
-      if (typeof field === "string" && field.trim() !== "") {
-        try {
-          return JSON.parse(field);
-        } catch {
-          return [];
-        }
-      }
-      return Array.isArray(field) ? field : [];
+    // ✅ AUTO-GENERATE LOGIN PASSWORD FOR POSHAK LEADER
+    let generatedPassword;
+    if (data.role === ROLES.POSHAK_LEADER) {
+      generatedPassword = generateRandomPassword();
+      data.password = generatedPassword;
     }
-
-    data.skills = safeParseArrayField(data.skills);
-    data.hobbies = safeParseArrayField(data.hobbies);
-    data.sevaRoles = safeParseArrayField(data.sevaRoles);
 
     const member = await Member.create(data);
 
     res.status(201).json({
       success: true,
       message: "Member created successfully",
-      data: member
+      data: member,
+      // Only ever returned once, right after generation — not retrievable later.
+      generatedPassword
     });
 
   } catch (error) {
@@ -91,6 +83,12 @@ const getMemberById = async (req, res) => {
       return res.status(404).json({ success: false, message: "Member not found" });
     }
 
+    // If this request identified as a Poshak Leader (via the optional
+    // `identify` middleware), they may only view their own members.
+    if (req.leader && String(member.poshakLeaderId) !== String(req.leader._id)) {
+      return res.status(403).json({ success: false, message: "Not authorized to view this member" });
+    }
+
     res.status(200).json({ success: true, data: member });
 
   } catch (error) {
@@ -103,40 +101,29 @@ const getMemberById = async (req, res) => {
 
 // ✅ UPDATE MEMBER
 const updateMember = async (req, res) => {
-    // ✅ CLEAN UP OPTIONAL OBJECTID FIELDS
   try {
-    const updateData = { ...req.body };
-    if (updateData.poshakLeaderId === "") updateData.poshakLeaderId = undefined;
-    if (updateData.familyLeaderId === "") updateData.familyLeaderId = undefined;
-
-    // ✅ UPDATE PHOTO
-    if (req.file) {
-      const oldMember = await Member.findById(req.params.id);
-
-      if (oldMember?.photoPublicId) {
-        await cloudinary.uploader.destroy(oldMember.photoPublicId);
+    if (req.leader) {
+      const existing = await Member.findById(req.params.id);
+      if (!existing) return res.status(404).json({ success: false, message: "Member not found" });
+      if (String(existing.poshakLeaderId) !== String(req.leader._id)) {
+        return res.status(403).json({ success: false, message: "Not authorized to edit this member" });
       }
-
-      updateData.photoUrl = req.file.path;
-      updateData.photoPublicId = req.file.filename;
     }
 
+    let updateData = normalizeMemberBody(req.body);
+    // Passwords are never admin-typed — only ever (re)generated via the
+    // explicit regeneratePassword flag below, so drop anything else supplied.
+    delete updateData.password;
 
-    // ✅ SAFE PARSE ARRAY FIELDS
-    function safeParseArrayField(field) {
-      if (typeof field === "string" && field.trim() !== "") {
-        try {
-          return JSON.parse(field);
-        } catch {
-          return [];
-        }
-      }
-      return Array.isArray(field) ? field : [];
+    let generatedPassword;
+    const wantsRegenerate = req.body.regeneratePassword === true || req.body.regeneratePassword === "true";
+    if (wantsRegenerate) {
+      generatedPassword = generateRandomPassword();
+      updateData.password = generatedPassword;
     }
+    updateData = await maybeHashPassword(updateData);
 
-    updateData.skills = safeParseArrayField(updateData.skills);
-    updateData.hobbies = safeParseArrayField(updateData.hobbies);
-    updateData.sevaRoles = safeParseArrayField(updateData.sevaRoles);
+    updateData = await applyPhotoReplacement(req.params.id, updateData, req.file);
 
     const member = await Member.findByIdAndUpdate(
       req.params.id,
@@ -149,7 +136,8 @@ const updateMember = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Member updated successfully",
-      data: member
+      data: member,
+      generatedPassword
     });
 
   } catch (error) {

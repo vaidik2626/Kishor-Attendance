@@ -1,5 +1,6 @@
 // models/Member.js
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const ROLES = {
   KISHOR: "KISHOR",
@@ -245,11 +246,11 @@ const MemberSchema = new mongoose.Schema(
 
     poshakLeaderId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: "Member"
     },
     familyLeaderId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
+      ref: "Member"
     },
 
     // Seva Roles (Kishor)
@@ -306,6 +307,13 @@ const MemberSchema = new mongoose.Schema(
       // Not required, not stored
       required: false,
       select: true
+    },
+
+    // Login credential for staff-type roles (currently Poshak Leader) who get
+    // their own dashboard. Optional — most members never log in.
+    password: {
+      type: String,
+      select: false
     }
 
   },
@@ -316,10 +324,24 @@ const MemberSchema = new mongoose.Schema(
   }
 );
 
+MemberSchema.pre('save', async function () {
+  if (!this.isModified('password') || !this.password) return;
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+MemberSchema.methods.comparePassword = async function (enteredPassword) {
+  if (!this.password) return false;
+  return bcrypt.compare(enteredPassword, this.password);
+};
+
 // Speeds up attendance member-sync (role + sabhaType + kishorStatus lookups)
 // and the getAllMembers list sort.
 MemberSchema.index({ role: 1, sabhaType: 1, kishorStatus: 1 });
 MemberSchema.index({ createdAt: -1 });
+// Leader login lookup (role + smkNo) and "my members" lookup (poshakLeaderId).
+MemberSchema.index({ role: 1, smkNo: 1 });
+MemberSchema.index({ poshakLeaderId: 1 });
 
 const Member = mongoose.model("Member", MemberSchema);
 module.exports = { Member, ROLES };
