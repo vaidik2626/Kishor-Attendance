@@ -168,6 +168,14 @@ const MemberSchema = new mongoose.Schema(
       // enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-']
     },
 
+    // Whether this Kishor has other family members who are also Kishor
+    // (Kishor role only — not applicable to Yuvan or other roles).
+    hasFamilyKishor: {
+      type: String,
+      enum: ["YES", "NO", ""],
+      default: ""
+    },
+
     // Education (Kishor)
     currentStandard: {
       type: String,
