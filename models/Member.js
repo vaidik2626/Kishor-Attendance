@@ -156,8 +156,6 @@ const MemberSchema = new mongoose.Schema(
       ]
     },
 
-    satsangDay: String, // 'dd-mm-yyyy' for Kishor optionally
-
     bloodGroup: {
       type: String,
       required: [
@@ -221,7 +219,6 @@ const MemberSchema = new mongoose.Schema(
       default: ""
     },
 
-    balSabhaName: { type: String },
     balSabhaCoordinatorName: { type: String },
 
     // Sant names (Kishor)
@@ -230,12 +227,7 @@ const MemberSchema = new mongoose.Schema(
 
     // Haribhakta references (Kishor)
     haribhakta1Name: { type: String },
-    haribhakta1Smk: { type: String },
-    haribhakta1Mobile: { type: String },
-
     haribhakta2Name: { type: String },
-    haribhakta2Smk: { type: String },
-    haribhakta2Mobile: { type: String },
     // Sabha / leadership
     sabhaType: {
       type: String,
@@ -253,10 +245,6 @@ const MemberSchema = new mongoose.Schema(
     },
 
     poshakLeaderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Member"
-    },
-    familyLeaderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Member"
     },

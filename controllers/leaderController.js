@@ -4,20 +4,19 @@ const { normalizeMemberBody, applyPhotoReplacement, pickAllowedFields } = requir
 
 // Fields a Poshak Leader may edit on one of their own members. Deliberately
 // excludes identity/administrative fields (smkNo, role, sabhaType,
-// poshakLeaderId, familyLeaderId, kishorStatus, hajriNumber, password) —
-// those stay admin-only.
+// poshakLeaderId, kishorStatus, hajriNumber, password) — those stay admin-only.
 const LEADER_EDITABLE_FIELDS = [
   "firstName", "middleName", "lastName",
   "mobileNumber", "personalMobile", "homeMobile", "fatherMobile",
   "address", "pincode", "nativePlace", "fatherOccupation",
-  "dateOfBirth", "satsangDay", "bloodGroup",
+  "dateOfBirth", "bloodGroup",
   "currentStandard", "schoolName",
   "skills", "hobbies",
   "doesPooja", "hasOutsideFriends", "satsangAtHome",
-  "balSabhaName", "balSabhaCoordinatorName",
+  "balSabhaCoordinatorName",
   "sant1Name", "sant2Name",
-  "haribhakta1Name", "haribhakta1Smk", "haribhakta1Mobile",
-  "haribhakta2Name", "haribhakta2Smk", "haribhakta2Mobile",
+  "haribhakta1Name",
+  "haribhakta2Name",
   "sevaRoles", "whatsappGroupAdded"
 ];
 

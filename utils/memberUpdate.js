@@ -20,7 +20,6 @@ function normalizeMemberBody(rawBody) {
   const data = { ...rawBody };
 
   if (data.poshakLeaderId === "") data.poshakLeaderId = undefined;
-  if (data.familyLeaderId === "") data.familyLeaderId = undefined;
 
   data.skills = safeParseArrayField(data.skills);
   data.hobbies = safeParseArrayField(data.hobbies);
