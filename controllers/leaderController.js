@@ -1,5 +1,6 @@
-const { Member } = require("../models/Member");
+const { Member, ROLES } = require("../models/Member");
 const Sabha = require("../models/Sabha");
+const generateHajriNumber = require("../utils/generateHajri");
 const { normalizeMemberBody, applyPhotoReplacement, pickAllowedFields } = require("../utils/memberUpdate");
 
 // Fields a Poshak Leader may edit on one of their own members. Deliberately
@@ -34,6 +35,32 @@ const getMyMembers = async (req, res) => {
     res.status(200).json({ success: true, count: members.length, data: members });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error fetching members", error: error.message });
+  }
+};
+
+// POST /api/leader/members — a Poshak Leader adding a new Kishor under themselves.
+// Role and poshakLeaderId are always forced server-side, never taken from the
+// request body, so a leader can only ever create Kishor assigned to themselves.
+const createMyMember = async (req, res) => {
+  try {
+    const data = normalizeMemberBody(req.body);
+    data.role = ROLES.KISHOR;
+    data.poshakLeaderId = req.leader._id;
+    data.hajriNumber = await generateHajriNumber();
+    // Not collected on the leader's add-Kishor form — sensible defaults for a
+    // brand-new member (status changes stay admin-only via LEADER_EDITABLE_FIELDS).
+    if (!data.kishorStatus) data.kishorStatus = "ACTIVE";
+    if (!data.sabhaJoiningDate) data.sabhaJoiningDate = new Date().toISOString().slice(0, 10);
+
+    if (req.file) {
+      data.photoUrl = req.file.path;
+      data.photoPublicId = req.file.filename;
+    }
+
+    const member = await Member.create(data);
+    res.status(201).json({ success: true, message: "Member created successfully", data: member });
+  } catch (error) {
+    res.status(400).json({ success: false, message: "Error creating member", error: error.message });
   }
 };
 
@@ -113,4 +140,4 @@ const getMySabhaReport = async (req, res) => {
   }
 };
 
-module.exports = { getMe, getMyMembers, getMyMemberById, updateMyMember, getMySabhaReport };
+module.exports = { getMe, getMyMembers, createMyMember, getMyMemberById, updateMyMember, getMySabhaReport };

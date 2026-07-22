@@ -5,6 +5,7 @@ const { protectLeader } = require("../middleware/authMiddleware");
 const {
   getMe,
   getMyMembers,
+  createMyMember,
   getMyMemberById,
   updateMyMember,
   getMySabhaReport
@@ -15,6 +16,7 @@ router.use(protectLeader);
 
 router.get("/me", getMe);
 router.get("/members", getMyMembers);
+router.post("/members", upload.single("photo"), createMyMember);
 router.get("/members/:id", getMyMemberById);
 router.put("/members/:id", upload.single("photo"), updateMyMember);
 router.get("/sabha-report", getMySabhaReport);
