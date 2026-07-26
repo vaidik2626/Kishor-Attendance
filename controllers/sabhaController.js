@@ -100,7 +100,7 @@ async function ensureAllSabhaMembersMarked(sabha) {
   const memberIds = await Member.find(memberQuery, '_id').lean();
   if (!Array.isArray(memberIds) || memberIds.length === 0) return sabha;
 
-  const existingIds = new Set((sabha.attendance || []).map(a => a.user.toString()));
+  const existingIds = new Set((sabha.attendance || []).filter(a => a.user).map(a => a.user.toString()));
   const missing = memberIds.filter(mem => !existingIds.has(mem._id.toString()));
 
   if (missing.length > 0) {
@@ -563,7 +563,7 @@ const getUserAttendanceHistory = async (req, res) => {
     const sabhas = await Sabha.find(query).sort({ sabhaDate: -1 });
 
     const history = sabhas.map(sabha => {
-      const att = sabha.attendance.find(a => a.user.toString() === userId) || {};
+      const att = sabha.attendance.find(a => a.user && a.user.toString() === userId) || {};
       return {
         sabhaId: sabha._id,
         sabhaNo: sabha.sabhaNo,

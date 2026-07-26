@@ -115,8 +115,8 @@ const MemberSchema = new mongoose.Schema(
     personalMobile: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
-        "Personal mobile is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Personal mobile is required for  Yuvan"
       ]
     },
     homeMobile: String,
@@ -147,7 +147,6 @@ const MemberSchema = new mongoose.Schema(
         requiredForRoles([
           ROLES.KISHOR,
           ROLES.YUVAN,
-          ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
           ROLES.SANCHALAK
@@ -159,7 +158,7 @@ const MemberSchema = new mongoose.Schema(
     bloodGroup: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
+        requiredForRoles([ROLES.YUVAN]),
         "Blood group is required for Kishor and Yuvan"
       ]
       // You can add enum here if you want fixed groups
@@ -218,6 +217,14 @@ const MemberSchema = new mongoose.Schema(
       enum: ["YES", "NO", "SOMETIMES", ""],
       default: ""
     },
+    hasSatsangiFriends: {
+      type: String,
+      enum: ["YES", "NO", "SOMETIMES", ""],
+      default: ""
+    },
+
+    // Career aspiration (Kishor)
+    whatDoYouWantToBe: { type: String },
 
     balSabhaCoordinatorName: { type: String },
 
