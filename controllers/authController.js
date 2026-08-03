@@ -171,7 +171,7 @@ const getLeaderOptions = async (req, res) => {
   try {
     const leaders = await Member.find(
       { role: 'POSHAK_LEADER', password: { $exists: true, $ne: null } },
-      'firstName lastName smkNo'
+      'firstName lastName smkNo sabhaType'
     ).sort({ firstName: 1 }).lean();
 
     res.status(200).json({ success: true, data: leaders });
