@@ -106,10 +106,14 @@ const updateMyMember = async (req, res) => {
 // Same shape as the admin getAllSabhas(includeAttendance) response, except
 // each sabha's attendance array is filtered down to only this leader's own
 // members server-side, so no other leader's data is ever transmitted.
+// Also scoped to the leader's own assembly (sabhaType) — a Teen assembly
+// leader never sees Youth assembly sabhas here, and vice versa, since their
+// members only ever attend sabhas of their own assembly anyway.
 const getMySabhaReport = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const filter = {};
+    if (req.leader.sabhaType) filter.sabhaType = req.leader.sabhaType;
     if (startDate || endDate) {
       filter.sabhaDate = {};
       if (startDate) filter.sabhaDate.$gte = new Date(startDate);
