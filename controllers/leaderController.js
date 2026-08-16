@@ -13,6 +13,7 @@ const LEADER_EDITABLE_FIELDS = [
   "dateOfBirth", "bloodGroup",
   "currentStandard", "schoolName",
   "skills", "hobbies",
+  "hasFamilyKishor",
   "doesPooja", "hasOutsideFriends", "satsangAtHome", "hasSatsangiFriends",
   "whatDoYouWantToBe",
   "balSabhaCoordinatorName",
