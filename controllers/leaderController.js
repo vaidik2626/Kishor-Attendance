@@ -145,4 +145,53 @@ const getMySabhaReport = async (req, res) => {
   }
 };
 
-module.exports = { getMe, getMyMembers, createMyMember, getMyMemberById, updateMyMember, getMySabhaReport };
+// POST /api/leader/members/:id/notes  { text }
+// Appends a timestamped note to one of this leader's own members. Scoped by
+// poshakLeaderId the same way every other leader endpoint is, so a leader can
+// only ever annotate their own Kishor.
+const addMemberNote = async (req, res) => {
+  try {
+    const text = (req.body.text || "").trim();
+    if (!text) {
+      return res.status(400).json({ success: false, message: "Note text is required" });
+    }
+
+    const member = await Member.findOne({ _id: req.params.id, poshakLeaderId: req.leader._id });
+    if (!member) {
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    member.leaderNotes.push({ text, createdAt: new Date() });
+    await member.save();
+
+    res.status(201).json({ success: true, message: "Note added", data: member });
+  } catch (error) {
+    res.status(400).json({ success: false, message: "Error adding note", error: error.message });
+  }
+};
+
+// DELETE /api/leader/members/:id/notes/:noteId
+const deleteMemberNote = async (req, res) => {
+  try {
+    const member = await Member.findOne({ _id: req.params.id, poshakLeaderId: req.leader._id });
+    if (!member) {
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const before = member.leaderNotes.length;
+    member.leaderNotes = member.leaderNotes.filter((n) => String(n._id) !== req.params.noteId);
+    if (member.leaderNotes.length === before) {
+      return res.status(404).json({ success: false, message: "Note not found" });
+    }
+    await member.save();
+
+    res.status(200).json({ success: true, message: "Note deleted", data: member });
+  } catch (error) {
+    res.status(400).json({ success: false, message: "Error deleting note", error: error.message });
+  }
+};
+
+module.exports = {
+  getMe, getMyMembers, createMyMember, getMyMemberById, updateMyMember, getMySabhaReport,
+  addMemberNote, deleteMemberNote
+};

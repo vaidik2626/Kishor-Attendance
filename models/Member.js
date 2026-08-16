@@ -292,6 +292,16 @@ const MemberSchema = new mongoose.Schema(
       ]
     },
 
+    // Freeform, timestamped notes a Poshak Leader keeps about one of their
+    // own Kishor (e.g. things to follow up on). Leader-authored and
+    // leader-visible only — not surfaced anywhere in the admin/report UI.
+    leaderNotes: [
+      {
+        text: { type: String, required: true, trim: true },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ],
+
     // Virtual (calculated) field for age (not stored in DB)
     age: {
       type: Number,
