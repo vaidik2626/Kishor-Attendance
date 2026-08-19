@@ -275,7 +275,16 @@ const getAllSabhas = async (req, res) => {
     if (startDate || endDate) {
       filter.sabhaDate = {};
       if (startDate) filter.sabhaDate.$gte = new Date(startDate);
-      if (endDate) filter.sabhaDate.$lte = new Date(endDate);
+      if (endDate) {
+        // A date-only string parses to midnight, which would exclude every
+        // sabha later that same day (e.g. the dashboard's "Today's Events"
+        // passes startDate === endDate === today and got back nothing) —
+        // extend to the end of the day, same fix already used in
+        // getUserAttendanceHistory below.
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.sabhaDate.$lte = end;
+      }
     }
 
     // basic pagination
