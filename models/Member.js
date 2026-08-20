@@ -34,10 +34,24 @@ const MemberSchema = new mongoose.Schema(
       // Kishor, Poshak Leader, Sanchalak can use this. Not strictly required.
     },
 
+    // smkNo, hajriNumber, and every field below marked "Kishor: optional" are
+    // deliberately not required for ROLES.KISHOR — Poshak Leaders often add a
+    // Kishor with incomplete info and fill the rest in later, so nothing
+    // should block that save. Still required for the roles listed.
     smkNo: {
       type: String,
       trim: true,
-      required: [true, "SMK No. is required for all roles"]
+      required: [
+        requiredForRoles([
+          ROLES.YUVAN,
+          ROLES.POSHAK_LEADER,
+          ROLES.SAHSANCHALAK,
+          ROLES.MADADNISH,
+          ROLES.SANCHALAK,
+          ROLES.VAKTA
+        ]),
+        "SMK No. is required for this role"
+      ]
     },
 
     // ========================
@@ -45,18 +59,20 @@ const MemberSchema = new mongoose.Schema(
     // ========================
     hajriNumber: {
       type: String,
-      // auto-generated but only relevant for Kishor and Yuvan
+      // Kishor: optional. Auto-generated when created via the leader's Add
+      // Kishor flow anyway, so this is really just relaxing the requirement
+      // for admin-created Kishor records.
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
-        "Hajri Number is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Hajri Number is required for Yuvan"
       ]
     },
 
     firstName: {
       type: String,
+      // Kishor: optional.
       required: [
         requiredForRoles([
-          ROLES.KISHOR,
           ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
@@ -70,20 +86,18 @@ const MemberSchema = new mongoose.Schema(
 
     middleName:{
       type : String,
+      // Kishor: optional.
       required: [
-        requiredForRoles([
-          ROLES.KISHOR,
-          ROLES.YUVAN
-        ]),
-        "Middle name is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Middle name is required for Yuvan"
       ]
     },
 
     lastName: {
       type: String,
+      // Kishor: optional.
       required: [
         requiredForRoles([
-          ROLES.KISHOR,
           ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
@@ -125,9 +139,9 @@ const MemberSchema = new mongoose.Schema(
     // Basic info
     address: {
       type: String,
+      // Kishor: optional.
       required: [
         requiredForRoles([
-          ROLES.KISHOR,
           ROLES.YUVAN,
           ROLES.POSHAK_LEADER,
           ROLES.SAHSANCHALAK,
@@ -143,9 +157,9 @@ const MemberSchema = new mongoose.Schema(
 
     dateOfBirth: {
       type: String, // or Date if you want
+      // Kishor: optional.
       required: [
         requiredForRoles([
-          ROLES.KISHOR,
           ROLES.YUVAN,
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
@@ -159,7 +173,7 @@ const MemberSchema = new mongoose.Schema(
       type: String,
       required: [
         requiredForRoles([ROLES.YUVAN]),
-        "Blood group is required for Kishor and Yuvan"
+        "Blood group is required for Yuvan"
       ]
       // You can add enum here if you want fixed groups
       // enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-']
@@ -176,18 +190,14 @@ const MemberSchema = new mongoose.Schema(
     // Education (Kishor)
     currentStandard: {
       type: String,
+      // Kishor: optional.
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
-        "Current standard is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Current standard is required for Yuvan"
       ]
     },
-    schoolName: {
-      type: String,
-      required: [
-        requiredForRoles([ROLES.KISHOR]),
-        "School name is required for Kishor and Yuvan"
-      ]
-    },
+    // Kishor: optional — was Kishor-only-required, now never required.
+    schoolName: { type: String },
 
     // Personal (Kishor)
     skills: [
@@ -236,6 +246,7 @@ const MemberSchema = new mongoose.Schema(
     haribhakta1Name: { type: String },
     haribhakta2Name: { type: String },
     // Sabha / leadership
+    // Kishor: optional.
     sabhaType: {
       type: String,
       required: [
@@ -244,7 +255,6 @@ const MemberSchema = new mongoose.Schema(
           ROLES.SAHSANCHALAK,
           ROLES.MADADNISH,
           ROLES.SANCHALAK,
-          ROLES.KISHOR,
           ROLES.YUVAN
         ]),
         "Sabha Type is required for this role"
@@ -275,20 +285,22 @@ const MemberSchema = new mongoose.Schema(
       }
     },
 
+    // Kishor: optional.
     kishorStatus: {
       type: String,
       enum: ["ACTIVE", "INACTIVE", "LEFT", ""],
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
-        "Kishor/Yuvan status is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Status is required for Yuvan"
       ]
     },
 
+    // Kishor: optional.
     sabhaJoiningDate: {
       type: String,
       required: [
-        requiredForRoles([ROLES.KISHOR, ROLES.YUVAN]),
-        "Sabha joining date is required for Kishor and Yuvan"
+        requiredForRoles([ROLES.YUVAN]),
+        "Sabha joining date is required for Yuvan"
       ]
     },
 
