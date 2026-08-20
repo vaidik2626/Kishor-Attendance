@@ -41,6 +41,16 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 connectDB();
 
+// Flags misconfigured Cloudinary credentials at boot rather than letting
+// every photo-upload request fail with an opaque error later — a very easy
+// thing to forget to set in the deploy platform's env vars (a local .env
+// file is never read in production there).
+['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'].forEach((key) => {
+  if (!process.env[key]) {
+    console.error(`[startup] Missing env var ${key} — photo uploads (create/edit member) will fail until this is set.`);
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use("/api/members", memberRoutes);
@@ -50,6 +60,19 @@ app.use('/api', saintRoutes);
 app.use('/api/event-response', eventResponseRoutes);
 app.use('/api/leader', leaderRoutes);
 
+// Catches anything a route/middleware throws or forwards via next(err) that
+// isn't already handled (e.g. multer/Cloudinary upload failures, which
+// happen before a route handler's own try/catch even runs) — without this,
+// Express's default handler sends a bare, contentless 500 with no way to
+// tell what actually broke, in server logs or in the response.
+app.use((err, req, res, next) => {
+  console.error('[unhandled error]', err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error',
+  });
+});
 
 // Start server
 const PORT = process.env.PORT || 4000;
