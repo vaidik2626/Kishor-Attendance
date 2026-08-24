@@ -587,10 +587,37 @@ const getUserAttendanceHistory = async (req, res) => {
     const totalPresent = history.filter(h => h.isPresent).length;
     const attendancePercentage = totalSabhas ? ((totalPresent / totalSabhas) * 100).toFixed(2) : '0.00';
 
+    // Resolve the Poshak Leader's name for display — the member only stores
+    // poshakLeaderId, and the individual report's profile card needs the
+    // name to show, not just the id.
+    let poshakLeaderName = '';
+    if (member.poshakLeaderId) {
+      const leaderDoc = await Member.findById(member.poshakLeaderId, 'firstName lastName').lean();
+      if (leaderDoc) poshakLeaderName = `${leaderDoc.firstName || ''} ${leaderDoc.lastName || ''}`.trim();
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        member: { id: member._id, firstName: member.firstName, lastName: member.lastName, smkNo: member.smkNo },
+        member: {
+          id: member._id,
+          firstName: member.firstName,
+          middleName: member.middleName,
+          lastName: member.lastName,
+          smkNo: member.smkNo,
+          hajriNumber: member.hajriNumber,
+          photoUrl: member.photoUrl,
+          role: member.role,
+          kishorStatus: member.kishorStatus,
+          dateOfBirth: member.dateOfBirth,
+          currentStandard: member.currentStandard,
+          schoolName: member.schoolName,
+          sabhaType: member.sabhaType,
+          personalMobile: member.personalMobile,
+          homeMobile: member.homeMobile,
+          fatherMobile: member.fatherMobile,
+          poshakLeaderName,
+        },
         statistics: { totalSabhas, totalPresent, totalAbsent: totalSabhas - totalPresent, attendancePercentage: `${attendancePercentage}%` },
         history
       }
